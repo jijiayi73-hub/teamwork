@@ -1,0 +1,10 @@
+services:
+  app:
+    image: node:22-alpine
+    working_dir: /workspace
+    volumes:
+      - .:/workspace
+    command: sh -c "echo 'Configure frontend/backend start command here' && sleep infinity"
+    ports:
+      - "3000:3000"
+
