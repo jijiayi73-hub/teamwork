@@ -1,117 +1,117 @@
-# Inner Garden Chat API Design Document
+# Inner Garden Chat API 设计文档
 
-## Version: 1.2.1 (Historical Sources Support)
-## Date: 2026-07-08
-## Status: Design Phase - Database Schema Fixed
+## 版本：1.2.1（历史来源支持）
+## 日期：2026-07-08
+## 状态：设计阶段 - 数据库架构已确定
 
-## Changelog
-- v1.2.1: Added historical message sources support - ChatHistoryItem now includes sources for assistant messages, separate from MessageRead to avoid circular dependencies
-- v1.2: API Contract Freeze - Fixed status code strategy (Pydantic validators return 422), unified AI failure handling (return 502/504 not success=true), standardized field naming (mode/role/assistant), removed user_id from responses, simplified source_type, removed hardcoded contact numbers
-- v1.1: Applied design review feedback - sources deduplication, 422/400 clarification, mode/anchor only for new conversations, structured safety enums, unified 404 strategy
-- v1.0: Initial design
-
----
-
-# A. Why Use a Unified Chat Interface?
-
-## Design Rationale
-
-### 1. Shared Domain Model
-
-Both AI Companion Chat and Past Self Chat share fundamental concepts:
-- **Conversation**: A chat session between user and AI
-- **Messages**: Turn-based exchange of user inputs and AI responses
-- **Context Retrieval**: Fetching relevant historical diaries
-- **AI Generation**: Calling LLM with structured prompts
-- **User Isolation**: All data scoped to current user
-
-The only differences are:
-- **Conversation mode**: companion vs past_self
-- **Retrieval scope**: optional vs required (with anchor diary)
-- **Prompt template**: different system instructions
-- **Tone**: gentle companion vs reflective past self
-
-### 2. Code Reusability
-
-Unified interface enables:
-- Single `Conversation` and `Message` model
-- Single `chat_service.py` for business logic
-- Single `retrieval_service.py` for diary fetching
-- Single `ai_provider.py` for LLM calls
-- Shared frontend components (`ChatWindow`, `MessageBubble`)
-
-### 3. Consistent User Experience
-
-Users perceive "chat with AI" as one feature, not two:
-- Same UI patterns
-- Same message history behavior
-- Same loading/error states
-- Different modes are just contextual variations
-
-### 4. Simplified Testing
-
-Unified interface reduces test surface:
-- One set of conversation CRUD tests
-- One set of message storage tests
-- Mode-specific tests as variations, not separate suites
-
-### 5. Future Extensibility
-
-Adding new chat modes becomes trivial:
-- Just add new `mode` value
-- Add prompt template
-- Add retrieval strategy
-- No new endpoints needed
-
-### 6. RESTful Alignment
-
-```
-/chat/conversations     - Collection of conversations
-/chat/conversations/{id} - Specific conversation
-/chat/conversations/{id}/messages - Messages in conversation
-/chat/messages          - Send message (creates or continues conversation)
-```
-
-This follows REST principle of treating conversations as resources with messages as sub-resources.
+## 变更日志
+- v1.2.1：新增历史消息来源支持 - ChatHistoryItem 现在包含助手消息的来源，与 MessageRead 分离以避免循环依赖
+- v1.2：API 契约冻结 - 确定状态码策略（Pydantic 验证器返回 422），统一 AI 故障处理（返回 502/504 而非 success=true），标准化字段命名（mode/role/assistant），从响应中移除 user_id，简化 source_type，移除硬编码的联系号码
+- v1.1：应用设计审查反馈 - 来源去重，422/400 澄清，mode/anchor 仅用于新对话，结构化安全枚举，统一 404 策略
+- v1.0：初始设计
 
 ---
 
-# B. Interface List Table
+# A. 为什么使用统一的聊天界面？
 
-| HTTP Method | URL | Purpose | Auth | Request Parameters | Response Fields | Status Codes |
+## 设计理由
+
+### 1. 共享领域模型
+
+AI Companion Chat（伴侣聊天）和 Past Self Chat（过去自我聊天）共享基本概念：
+- **Conversation（对话）**：用户与 AI 之间的聊天会话
+- **Messages（消息）**：用户输入和 AI 响应的回合式交换
+- **Context Retrieval（上下文检索）**：获取相关历史日记
+- **AI Generation（AI 生成）**：使用结构化提示调用 LLM
+- **User Isolation（用户隔离）**：所有数据限定于当前用户
+
+唯一的区别是：
+- **Conversation mode（对话模式）**：companion（伴侣）vs past_self（过去自我）
+- **Retrieval scope（检索范围）**：可选 vs 必需（带锚定日记）
+- **Prompt template（提示词模板）**：不同的系统指令
+- **Tone（语气）**：温柔的伴侣 vs 反思的过去自我
+
+### 2. 代码可重用性
+
+统一接口实现：
+- 单一的 `Conversation` 和 `Message` 模型
+- 单一的 `chat_service.py` 处理业务逻辑
+- 单一的 `retrieval_service.py` 获取日记
+- 单一的 `ai_provider.py` 调用 LLM
+- 共享的前端组件（`ChatWindow`、`MessageBubble`）
+
+### 3. 一致的用户体验
+
+用户将"与 AI 聊天"视为一个功能，而不是两个：
+- 相同的 UI 模式
+- 相同的消息历史行为
+- 相同的加载/错误状态
+- 不同模式只是上下文变化
+
+### 4. 简化测试
+
+统一接口减少测试面：
+- 一组对话 CRUD 测试
+- 一组消息存储测试
+- 模式特定测试作为变体，而非独立套件
+
+### 5. 未来可扩展性
+
+添加新聊天模式变得简单：
+- 只需添加新的 `mode` 值
+- 添加提示词模板
+- 添加检索策略
+- 无需新端点
+
+### 6. RESTful 对齐
+
+```
+/chat/conversations     - 对话集合
+/chat/conversations/{id} - 特定对话
+/chat/conversations/{id}/messages - 对话中的消息
+/chat/messages          - 发送消息（创建或继续对话）
+```
+
+这遵循 REST 原则，将对话视为资源，消息视为子资源。
+
+---
+
+# B. 接口列表表
+
+| HTTP 方法 | URL | 用途 | 认证 | 请求参数 | 响应字段 | 状态码 |
 |-------------|-----|---------|------|-------------------|-----------------|--------------|
-| **POST** | `/api/v1/chat/messages` | Send message, get AI response, auto-create conversation if needed | Required | See section C | See section D | 200, 400, 401, 404, 422, 429, 502, 504 |
-| **GET** | `/api/v1/chat/conversations` | List user's conversations | Required | `page?`, `page_size?`, `mode?` | `conversations`, `pagination`, `total` | 200, 401, 422 |
-| **POST** | `/api/v1/chat/conversations` | Create new conversation explicitly | Required | `mode`, `title?`, `anchor_diary_id?` | `conversation`, `created_at` | 201, 400, 401, 422 |
-| **GET** | `/api/v1/chat/conversations/{conversation_id}` | Get conversation metadata | Required | - | `conversation` | 200, 401, 404 |
-| **GET** | `/api/v1/chat/conversations/{conversation_id}/messages` | Get messages in conversation | Required | `page?`, `page_size?` | `messages`, `pagination`, `total` | 200, 401, 404, 422 |
-| **DELETE** | `/api/v1/chat/conversations/{conversation_id}` | Delete conversation (soft delete) | Required | - | `deleted_conversation_id` | 200, 401, 404 |
+| **POST** | `/api/v1/chat/messages` | 发送消息，获取 AI 响应，自动创建对话（如需要） | 必需 | 见章节 C | 见章节 D | 200, 400, 401, 404, 422, 429, 502, 504 |
+| **GET** | `/api/v1/chat/conversations` | 列出用户的对话 | 必需 | `page?`, `page_size?`, `mode?` | `conversations`, `pagination`, `total` | 200, 401, 422 |
+| **POST** | `/api/v1/chat/conversations` | 显式创建新对话 | 必需 | `mode`, `title?`, `anchor_diary_id?` | `conversation`, `created_at` | 201, 400, 401, 422 |
+| **GET** | `/api/v1/chat/conversations/{conversation_id}` | 获取对话元数据 | 必需 | - | `conversation` | 200, 401, 404 |
+| **GET** | `/api/v1/chat/conversations/{conversation_id}/messages` | 获取对话中的消息 | 必需 | `page?`, `page_size?` | `messages`, `pagination`, `total` | 200, 401, 404, 422 |
+| **DELETE** | `/api/v1/chat/conversations/{conversation_id}` | 删除对话（软删除） | 必需 | - | `deleted_conversation_id` | 200, 401, 404 |
 
-### Endpoint Details
+### 端点详情
 
 #### POST /api/v1/chat/messages
-**Primary endpoint for sending messages.** Auto-creates conversation if `conversation_id` not provided.
+**发送消息的主要端点。** 如果未提供 `conversation_id`，则自动创建对话。
 
 #### GET /api/v1/chat/conversations
-**List conversations** with optional mode filtering. Supports pagination.
+**列出对话**，支持可选的模式过滤。支持分页。
 
 #### POST /api/v1/chat/conversations
-**Explicit conversation creation.** Useful for pre-creating conversations (e.g., when clicking "Start Chat" button).
+**显式创建对话。** 适用于预先创建对话（例如，点击"开始聊天"按钮时）。
 
 #### GET /api/v1/chat/conversations/{conversation_id}
-**Get conversation metadata** (without messages). Use `/conversations/{id}/messages` for paginated message list.
+**获取对话元数据**（不含消息）。使用 `/conversations/{id}/messages` 获取分页消息列表。
 
 #### GET /api/v1/chat/conversations/{conversation_id}/messages
-**Paginated message list.** Used for infinite scroll or loading more history.
+**分页消息列表。** 用于无限滚动或加载更多历史。
 
 #### DELETE /api/v1/chat/conversations/{conversation_id}
-**Soft delete conversation.** Marks as deleted, doesn't actually remove data.
+**软删除对话。** 标记为已删除，不实际删除数据。
 
 ---
 
-# C. POST /api/v1/chat/messages - Complete Request Format
+# C. POST /api/v1/chat/messages - 完整请求格式
 
-## Request Schema
+## 请求架构
 
 ```json
 {
@@ -123,82 +123,82 @@ This follows REST principle of treating conversations as resources with messages
 }
 ```
 
-## Field Specifications
+## 字段规格
 
-| Field | Type | Required | Default | Validation | When Required |
+| 字段 | 类型 | 必需 | 默认值 | 验证 | 何时必需 |
 |-------|------|----------|---------|------------|--------------|
-| `conversation_id` | integer \| null | Conditional | null | Must exist and belong to user if provided | Required for continuing conversation |
-| `mode` | enum \| null | Conditional | null | Must be 'companion' or 'past_self' | Required for NEW conversation (conversation_id is null) |
-| `content` | string | Yes | - | Min 1 char, max 5000 chars, trimmed | Always |
-| `use_memory` | boolean | No | false | Must be boolean | Optional |
-| `anchor_diary_id` | integer \| null | Conditional | null | Must exist and belong to user if provided | Required when mode='past_self' AND conversation_id is null |
+| `conversation_id` | integer \| null | 条件 | null | 如提供，必须存在且属于用户 | 继续对话时必需 |
+| `mode` | enum \| null | 条件 | null | 必须是 'companion' 或 'past_self' | 新对话时必需（conversation_id 为 null） |
+| `content` | string | 是 | - | 最少 1 字符，最多 5000 字符，已修剪 | 始终 |
+| `use_memory` | boolean | 否 | false | 必须是布尔值 | 可选 |
+| `anchor_diary_id` | integer \| null | 条件 | null | 如提供，必须存在且属于用户 | mode='past_self' 且 conversation_id 为 null 时必需 |
 
-## Detailed Field Descriptions
+## 详细字段说明
 
 ### conversation_id
-- **Purpose**: Continue existing conversation or start new one
-- **Null behavior**: Creates new conversation automatically
-- **Validation**:
-  - If provided: must query with user_id filter (returns 404 if not found for this user)
-  - Must not be deleted (`deleted_at IS NULL`)
-- **When to provide**: After first message in conversation
-- **When to omit**: First message of new conversation
+- **用途**：继续现有对话或开始新对话
+- **Null 行为**：自动创建新对话
+- **验证**：
+  - 如提供：必须使用 user_id 过滤查询（如对此用户未找到则返回 404）
+  - 必须未被删除（`deleted_at IS NULL`）
+- **何时提供**：对话中的第一条消息后
+- **何时省略**：新对话的第一条消息
 
 ### mode
-- **Purpose**: Distinguish business logic and prompt template
-- **Values**: `companion` or `past_self`
-- **Required**: Only when `conversation_id` is null (new conversation)
-- **Ignored**: When `conversation_id` is provided (backend uses stored mode)
-- **Backend behavior**: 
-  - New conversation: Use provided mode to create conversation
-  - Existing conversation: Ignore provided mode, use conversation's stored mode
-- **Frontend decision**:
-  - Home page → `companion`
-  - Memory detail page → `past_self`
-  - After first message: Don't send mode (or send null)
+- **用途**：区分业务逻辑和提示词模板
+- **值**：`companion` 或 `past_self`
+- **必需**：仅当 `conversation_id` 为 null 时（新对话）
+- **忽略**：当 `conversation_id` 已提供时（backend 使用存储的 mode）
+- **Backend 行为**：
+  - 新对话：使用提供的 mode 创建对话
+  - 现有对话：忽略提供的 mode，使用对话存储的 mode
+- **Frontend 决策**：
+  - 主页 → `companion`
+  - 记忆详情页 → `past_self`
+  - 第一条消息后：不发送 mode（或发送 null）
 
 ### content
-- **Purpose**: User's message text
-- **Validation** (Pydantic):
-  - Minimum 1 character after trimming
-  - Maximum 5000 characters
-  - Leading/trailing whitespace trimmed
-- **Error on fail**: Returns 422 (Unprocessable Entity)
-- **Frontend**:
-  - Trim before sending
-  - Show character count near limit
+- **用途**：用户消息文本
+- **验证**（Pydantic）：
+  - 修剪后最少 1 字符
+  - 最多 5000 字符
+  - 去除前导/尾随空格
+- **失败时返回**：422（Unprocessable Entity）
+- **Frontend**：
+  - 发送前修剪
+  - 显示接近限制的字符计数
 
 ### use_memory
-- **Purpose**: Enable/disable historical diary retrieval
-- **Behavior**:
-  - `true`: Retrieve relevant diaries for context
-  - `false`: No retrieval, AI responds without history
-- **Mode interaction**:
-  - `companion` + `use_memory=false`: Pure companion chat
-  - `companion` + `use_memory=true`: Companion with historical context
-  - `past_self`: Always uses memory (field ignored, anchor diary always used)
-- **Default**: false
-- **Frontend**:
-  - Provide toggle in UI
-  - Persist preference per session
+- **用途**：启用/禁用历史日记检索
+- **行为**：
+  - `true`：检索相关日记作为上下文
+  - `false`：不检索，AI 无历史响应
+- **模式交互**：
+  - `companion` + `use_memory=false`：纯伴侣聊天
+  - `companion` + `use_memory=true`：带历史上下文的伴侣
+  - `past_self`：始终使用记忆（字段被忽略，始终使用锚定日记）
+- **默认值**：false
+- **Frontend**：
+  - 在 UI 中提供切换开关
+  - 按会话持久化偏好
 
 ### anchor_diary_id
-- **Purpose**: Specify which diary to center conversation around
-- **Required**: When `mode='past_self'` AND `conversation_id` is null
-- **Optional**: For continuing past_self conversation (backend uses stored anchor_diary_id)
-- **Validation**:
-  - Must query with user_id filter (returns 404 if not found for this user)
-  - Must not be soft deleted (`deleted_at IS NULL`)
-- **Behavior**:
-  - This diary becomes primary context for AI
-  - Additional related diaries may also be retrieved
-- **Frontend**:
-  - Passed from MemoryDetailPage when user clicks "Chat with past self"
-  - Not needed for subsequent messages in same conversation
+- **用途**：指定以哪篇日记为中心进行对话
+- **必需**：当 `mode='past_self'` 且 `conversation_id` 为 null 时
+- **可选**：对于继续 past_self 对话（backend 使用存储的 anchor_diary_id）
+- **验证**：
+  - 必须使用 user_id 过滤查询（如对此用户未找到则返回 404）
+  - 必须未被软删除（`deleted_at IS NULL`）
+- **行为**：
+  - 此日记成为 AI 的主要上下文
+  - 可能还会检索其他相关日记
+- **Frontend**：
+  - 当用户点击"与过去的自己聊天"时从 MemoryDetailPage 传递
+  - 同一对话的后续消息不需要
 
-## Request Examples by Scenario
+## 按场景的请求示例
 
-### New Companion Conversation
+### 新 Companion 对话
 ```json
 {
   "conversation_id": null,
@@ -208,7 +208,7 @@ This follows REST principle of treating conversations as resources with messages
 }
 ```
 
-### New Past Self Conversation
+### 新 Past Self 对话
 ```json
 {
   "conversation_id": null,
@@ -218,7 +218,7 @@ This follows REST principle of treating conversations as resources with messages
 }
 ```
 
-### Continuing Any Conversation
+### 继续任何对话
 ```json
 {
   "conversation_id": 5,
@@ -227,45 +227,45 @@ This follows REST principle of treating conversations as resources with messages
 }
 ```
 
-**Note**: When continuing, `mode` and `anchor_diary_id` are not needed (backend uses stored values).
+**注意**：继续时，不需要 `mode` 和 `anchor_diary_id`（backend 使用存储的值）。
 
-## Validation Rules Summary
+## 验证规则摘要
 
 ```python
-# Pseudo-code for validation
+# 验证伪代码
 def validate_chat_request(request, current_user):
-    # Pydantic validates (returns 422 on failure):
-    # - content length (1-5000)
-    # - mode enum (if provided)
-    # - use_memory boolean
-    # - field types
+    # Pydantic 验证（失败时返回 422）：
+    # - content 长度（1-5000）
+    # - mode 枚举（如提供）
+    # - use_memory 布尔值
+    # - 字段类型
 
-    # Business rule validation in Pydantic @model_validator (also returns 422):
-    # - If new conversation, mode is required
-    # - If new past_self conversation, anchor_diary_id is required
+    # Pydantic @model_validator 中的业务规则验证（也返回 422）：
+    # - 如果是新对话，mode 必需
+    # - 如果是新 past_self 对话，anchor_diary_id 必需
 
-    # Resource existence and ownership (returns 404):
-    # - conversation_id must exist and belong to user
-    # - anchor_diary_id must exist and belong to user
+    # 资源存在性和所有权（返回 404）：
+    # - conversation_id 必须存在且属于用户
+    # - anchor_diary_id 必须存在且属于用户
 
     return True
 ```
 
-**Important**: All field validation (including business rules about required fields) returns 422. This is standard FastAPI/Pydantic behavior.
+**重要**：所有字段验证（包括必需字段的业务规则）返回 422。这是标准的 FastAPI/Pydantic 行为。
 
-## Status Code Strategy
+## 状态码策略
 
-| Code | Usage | Examples |
+| 代码 | 用途 | 示例 |
 |------|-------|----------|
-| **422** | All validation failures | Empty content, content > 5000 chars, invalid enum, wrong types, missing required fields |
-| **400** | Reserved for future use | Not used in v1 (all validation returns 422) |
-| **404** | Resource not found OR access denied | conversation_id not found or belongs to another user, diary not found or belongs to another user |
+| **422** | 所有验证失败 | 空内容、内容 > 5000 字符、无效枚举、错误类型、缺少必需字段 |
+| **400** | 保留供将来使用 | v1 中未使用（所有验证返回 422） |
+| **404** | 资源未找到或访问被拒绝 | conversation_id 未找到或属于另一个用户，日记未找到或属于另一个用户 |
 
 ---
 
-# D. POST /api/v1/chat/messages - Complete Response Format
+# D. POST /api/v1/chat/messages - 完整响应格式
 
-## Response Schema
+## 响应架构
 
 ```json
 {
@@ -275,7 +275,7 @@ def validate_chat_request(request, current_user):
     "user_message": { ... },
     "assistant_message": { ... },
     "retrieval": { ... },
-    "sources": [ ... ],  // Single source of truth
+    "sources": [ ... ],  // 单一事实来源
     "safety": { ... },
     "created_at": "..."
   },
@@ -284,95 +284,95 @@ def validate_chat_request(request, current_user):
 }
 ```
 
-## Field Specifications
+## 字段规格
 
 ### conversation
-The conversation object (created or updated).
+对话对象（已创建或已更新）。
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `id` | integer | Conversation ID |
-| `mode` | string | 'companion' or 'past_self' |
-| `title` | string \| null | Auto-generated or user-provided |
-| `anchor_diary_id` | integer \| null | For past_self mode |
-| `started_at` | datetime ISO 8601 | When conversation started |
-| `updated_at` | datetime ISO 8601 | Last message time |
-| `message_count` | integer | Total messages in conversation |
+| `id` | integer | 对话 ID |
+| `mode` | string | 'companion' 或 'past_self' |
+| `title` | string \| null | 自动生成或用户提供 |
+| `anchor_diary_id` | integer \| null | 用于 past_self 模式 |
+| `started_at` | datetime ISO 8601 | 对话开始时间 |
+| `updated_at` | datetime ISO 8601 | 最后消息时间 |
+| `message_count` | integer | 对话中的消息总数 |
 
-**Note**: `user_id` is not returned in response - it exists only in database and backend authentication context.
+**注意**：`user_id` 不在响应中返回 - 它仅存在于数据库和 backend 认证上下文中。
 
 ### user_message
-The message that was just sent (now persisted).
+刚刚发送的消息（现已持久化）。
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `id` | integer | Message ID |
-| `conversation_id` | integer | Belonging conversation |
-| `role` | 'user' | Always 'user' for this field |
-| `content` | string | User's message text |
-| `created_at` | datetime ISO 8601 | When message was created |
+| `id` | integer | 消息 ID |
+| `conversation_id` | integer | 所属对话 |
+| `role` | 'user' | 对此字段始终为 'user' |
+| `content` | string | 用户消息文本 |
+| `created_at` | datetime ISO 8601 | 消息创建时间 |
 
-**Note**: `sources` removed from messages - single source of truth at top level.
+**注意**：从消息中移除了 `sources` - 顶层单一事实来源。
 
 ### assistant_message
-The AI's response message.
+AI 的响应消息。
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `id` | integer | Message ID |
-| `conversation_id` | integer | Belonging conversation |
-| `role` | 'assistant' | Always 'assistant' for this field |
-| `content` | string | AI's response text |
-| `created_at` | datetime ISO 8601 | When message was created |
+| `id` | integer | 消息 ID |
+| `conversation_id` | integer | 所属对话 |
+| `role` | 'assistant' | 对此字段始终为 'assistant' |
+| `content` | string | AI 响应文本 |
+| `created_at` | datetime ISO 8601 | 消息创建时间 |
 
-**Note**: `sources` removed from messages - single source of truth at top level.
+**注意**：从消息中移除了 `sources` - 顶层单一事实来源。
 
-### sources (top level)
-**Single source of truth** for referenced diaries used in generating this response.
+### sources（顶层）
+用于生成此响应的引用日记的**单一事实来源**。
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `diary_id` | integer | Diary ID |
-| `diary_date` | date ISO 8601 | When the diary was written |
-| `title` | string | Diary title |
-| `excerpt` | string | First 100 chars of content |
-| `emotion_label` | string | Primary emotion |
-| `relevance_score` | float | 0.0 to 1.0, confidence of relevance |
-| `source_type` | string | `anchor` or `retrieved` |
+| `diary_id` | integer | 日记 ID |
+| `diary_date` | date ISO 8601 | 日记编写日期 |
+| `title` | string | 日记标题 |
+| `excerpt` | string | 内容的前 100 字符 |
+| `emotion_label` | string | 主要情绪 |
+| `relevance_score` | float | 0.0 到 1.0，相关性置信度 |
+| `source_type` | string | `anchor` 或 `retrieved` |
 
-**Note**: Specific retrieval algorithm details are in `retrieval.strategy`, not duplicated in each source.
+**注意**：具体检索算法详情在 `retrieval.strategy` 中，不在每个来源中重复。
 
 ### retrieval
-Metadata about how historical context was retrieved.
+关于如何检索历史上下文的元数据。
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `used` | boolean | Whether retrieval was attempted |
-| `strategy` | string | Which retrieval strategy was used (e.g., "none", "keyword_emotion_time") |
-| `total_found` | integer | Total matching diaries found |
-| `used_in_context` | integer | How many were sent to AI |
+| `used` | boolean | 是否尝试了检索 |
+| `strategy` | string | 使用了哪种检索策略（例如 "none"、"keyword_emotion_time"） |
+| `total_found` | integer | 找到的匹配日记总数 |
+| `used_in_context` | integer | 发送给 AI 的数量 |
 
-**Note**: Internal query rewriting/processing is not exposed - only the strategy name and counts.
+**注意**：内部查询重写/处理不公开 - 仅策略名称和计数。
 
 ### safety
-Content safety check results with **structured enums**.
+内容安全检查结果，带有**结构化枚举**。
 
-| Field | Type | Description |
+| 字段 | 类型 | 描述 |
 |-------|------|-------------|
-| `flagged` | boolean | Whether content was flagged |
-| `level` | enum | `none`, `low`, `medium`, `high` |
-| `category` | enum \| null | `emotional_distress`, `self_harm_risk`, `violence_risk`, `null` |
-| `action` | enum | `none`, `show_notice`, `suggest_support`, `trigger_emergency_flow` |
+| `flagged` | boolean | 内容是否被标记 |
+| `level` | enum | `none`、`low`、`medium`、`high` |
+| `category` | enum \| null | `emotional_distress`、`self_harm_risk`、`violence_risk`、`null` |
+| `action` | enum | `none`、`show_notice`、`suggest_support`、`trigger_emergency_flow` |
 
-**Note**: Use `assistant_message.created_at` for the response timestamp. No duplicate top-level `created_at`.
+**注意**：使用 `assistant_message.created_at` 作为响应时间戳。无重复的顶层 `created_at`。
 
 ---
 
-# E. Companion Mode - Request/Response Examples
+# E. Companion 模式 - 请求/响应示例
 
-## Example 1: New Conversation, No Memory
+## 示例 1：新对话，不使用记忆
 
-### Request
+### 请求
 ```json
 POST /api/v1/chat/messages
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -385,7 +385,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-### Response
+### 响应
 ```json
 {
   "success": true,
@@ -432,9 +432,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-## Example 2: Continuing Conversation, With Memory
+## 示例 2：继续对话，使用记忆
 
-### Request
+### 请求
 ```json
 POST /api/v1/chat/messages
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -446,9 +446,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-**Note**: `mode` not provided - backend uses stored conversation mode.
+**注意**：未提供 `mode` - backend 使用存储的对话模式。
 
-### Response
+### 响应
 ```json
 {
   "success": true,
@@ -516,11 +516,11 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
-# F. Past Self Mode - Request/Response Examples
+# F. Past Self 模式 - 请求/响应示例
 
-## Example: New Past Self Conversation
+## 示例：新 Past Self 对话
 
-### Request
+### 请求
 ```json
 POST /api/v1/chat/messages
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -533,7 +533,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-### Response
+### 响应
 ```json
 {
   "success": true,
@@ -590,9 +590,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-## Example: Continuing Past Self Conversation
+## 示例：继续 Past Self 对话
 
-### Request
+### 请求
 ```json
 POST /api/v1/chat/messages
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -604,9 +604,9 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-**Note**: No `mode` or `anchor_diary_id` needed - backend uses stored conversation values.
+**注意**：不需要 `mode` 或 `anchor_diary_id` - backend 使用存储的对话值。
 
-### Response
+### 响应
 ```json
 {
   "success": true,
@@ -674,11 +674,11 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
-# G. No Retrieval Results - Response Example
+# G. 无检索结果 - 响应示例
 
-## Example: User Has No Diary History
+## 示例：用户无日记历史
 
-### Request
+### 请求
 ```json
 POST /api/v1/chat/messages
 Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
@@ -691,7 +691,7 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-### Response
+### 响应
 ```json
 {
   "success": true,
@@ -740,24 +740,24 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 
 ---
 
-# H. Model Call Failure - Response Strategy
+# H. 模型调用失败 - 响应策略
 
-## Failure Handling Strategy
+## 故障处理策略
 
-**Important**: v1 does NOT use fallback messages with `success=true`. Model failures return real error codes.
+**重要**：v1 不使用带有 `success=true` 的回退消息。模型故障返回真实的错误码。
 
-### 1. Timeout (504)
+### 1. 超时（504）
 
-**Scenario**: AI provider takes too long to respond
+**场景**：AI provider 响应时间过长
 
-**Behavior**:
-- User message is saved
-- No assistant message is created
-- Returns 504 error
-- Frontend shows "generation failed" with retry option
-- Message can be retried by sending again with same conversation_id
+**行为**：
+- 用户消息已保存
+- 未创建助手消息
+- 返回 504 错误
+- Frontend 显示"生成失败"并提供重试选项
+- 可通过使用相同 conversation_id 再次发送来重试消息
 
-**Response**:
+**响应**：
 ```json
 {
   "success": false,
@@ -793,18 +793,18 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-### 2. Provider Error (502)
+### 2. Provider 错误（502）
 
-**Scenario**: AI provider returns 5xx error
+**场景**：AI provider 返回 5xx 错误
 
-**Behavior**:
-- User message is saved
-- No assistant message is created
-- Returns 502 error
-- Frontend shows "service unavailable" with retry option
-- Log for monitoring
+**行为**：
+- 用户消息已保存
+- 未创建助手消息
+- 返回 502 错误
+- Frontend 显示"服务不可用"并提供重试选项
+- 记录日志以供监控
 
-**Response**:
+**响应**：
 ```json
 {
   "success": false,
@@ -841,11 +841,11 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-### 3. Rate Limit (429)
+### 3. 速率限制（429）
 
-**Scenario**: Hit AI provider rate limit
+**场景**：达到 AI provider 速率限制
 
-**Response**:
+**响应**：
 ```json
 {
   "success": false,
@@ -864,17 +864,17 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-**Behavior**:
-- Return 429 status code
-- Include `retry_after` in seconds
-- Frontend should show countdown timer
-- User can retry after wait
+**行为**：
+- 返回 429 状态码
+- 包含 `retry_after`（秒）
+- Frontend 应显示倒计时
+- 用户可在等待后重试
 
-### 4. Content Safety Flag
+### 4. 内容安全标记
 
-**Scenario**: User input triggers safety concern
+**场景**：用户输入触发安全关注
 
-**Response**:
+**响应**：
 ```json
 {
   "success": true,
@@ -902,20 +902,20 @@ Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
 }
 ```
 
-**Behavior**:
-- Still respond, but with specific caring message
-- Flag in `safety` object with structured enums
-- Don't provide diagnosis or treatment
-- Support resources are configuration-driven (not hardcoded in response)
-- Frontend displays resources based on `safety.action`
+**行为**：
+- 仍然响应，但使用特定的关怀消息
+- 在 `safety` 对象中使用结构化枚举标记
+- 不提供诊断或治疗
+- 支持资源由配置驱动（不在响应中硬编码）
+- Frontend 根据 `safety.action` 显示资源
 
 ---
 
-# I. Error Response Design
+# I. 错误响应设计
 
-## Error Response Format
+## 错误响应格式
 
-All error responses follow this format (from `schemas/common.py`):
+所有错误响应遵循此格式（来自 `schemas/common.py`）：
 
 ```json
 {
@@ -932,29 +932,29 @@ All error responses follow this format (from `schemas/common.py`):
 }
 ```
 
-## Status Code Strategy
+## 状态码策略
 
-| Status Code | Usage | Examples |
+| 状态码 | 用途 | 示例 |
 |-------------|-------|----------|
-| **422** | All validation failures | Empty content, content > 5000 chars, invalid enum, wrong field types, missing required fields (mode, anchor_diary_id) |
-| **400** | Reserved for future use | Not used in v1 - all validation is 422 |
-| **404** | Resource not found OR access denied | Unified strategy - never reveal if resource exists for another user |
-| **401** | Authentication failures | Invalid or missing JWT token |
-| **429** | Rate limiting | Too many messages per minute |
-| **502/504** | AI service failures | Provider error or timeout |
+| **422** | 所有验证失败 | 空内容、内容 > 5000 字符、无效枚举、错误字段类型、缺少必需字段（mode、anchor_diary_id） |
+| **400** | 保留供将来使用 | v1 中未使用 - 所有验证均为 422 |
+| **404** | 资源未找到或访问被拒绝 | 统一策略 - 从不揭示资源是否属于另一用户 |
+| **401** | 认证失败 | 无效或缺失 JWT token |
+| **429** | 速率限制 | 每分钟消息过多 |
+| **502/504** | AI 服务故障 | Provider 错误或超时 |
 
-## Complete Error Cases
+## 完整错误情况
 
-### 422 Unprocessable Entity - Validation Failed
+### 422 Unprocessable Entity - 验证失败
 
-**Pydantic automatically returns 422 for**:
-- Empty content after trim
-- Content exceeds 5000 characters
-- Invalid mode value (not 'companion' or 'past_self')
-- Wrong field types (e.g., content as number)
-- **Business rule violations in @model_validator**:
-  - New conversation without mode
-  - New past_self conversation without anchor_diary_id
+**Pydantic 自动返回 422 当**：
+- 修剪后内容为空
+- 内容超过 5000 字符
+- 无效的 mode 值（非 'companion' 或 'past_self'）
+- 错误的字段类型（例如，content 为数字）
+- **@model_validator 中的业务规则违规**：
+  - 新对话缺少 mode
+  - 新 past_self 对话缺少 anchor_diary_id
 
 ```json
 {
@@ -978,18 +978,18 @@ All error responses follow this format (from `schemas/common.py`):
 }
 ```
 
-**Note**: In FastAPI/Pydantic, `ValueError` raised in `@model_validator` also returns 422, not 400. This is standard behavior.
+**注意**：在 FastAPI/Pydantic 中，`@model_validator` 中引发的 `ValueError` 也返回 422，而非 400。这是标准行为。
 
-### 400 Bad Request - Reserved for Future Use
+### 400 Bad Request - 保留供将来使用
 
-**Not used in v1**. All validation (including business rules) returns 422.
+**v1 中未使用**。所有验证（包括业务规则）返回 422。
 
-Reserved for potential future use cases like:
-- Conflicts between resources
-- State-based business violations
-- Other non-validation errors
+保留给潜在的未来用例，如：
+- 资源间的冲突
+- 基于状态的业务违规
+- 其他非验证错误
 
-### 401 Unauthorized - Not Logged In
+### 401 Unauthorized - 未登录
 
 ```json
 {
@@ -1006,33 +1006,33 @@ Reserved for potential future use cases like:
 }
 ```
 
-**Scenario**: No JWT token or invalid token
+**场景**：无 JWT token 或无效 token
 
-**Behavior**: Frontend should redirect to login
+**行为**：Frontend 应重定向到登录
 
-### 404 Not Found - Unified Strategy (Resource Not Found OR Access Denied)
+### 404 Not Found - 统一策略（资源未找到或访问被拒绝）
 
-**Security Principle**: Always return 404, never 403
+**安全原则**：始终返回 404，绝不返回 403
 
-**Rationale**: Don't reveal whether a resource exists or belongs to another user. This prevents:
-- User enumeration attacks
-- Information leakage about which resources exist
-- "Fishing" for valid conversation/diary IDs
+**理由**：不揭示资源是否存在或属于另一用户。这防止：
+- 用户枚举攻击
+- 关于哪些资源存在的信息泄漏
+- "钓鱼"有效的对话/日记 ID
 
-**Implementation**:
+**实现**：
 ```python
-# All resource queries include user_id filter
+# 所有资源查询包含 user_id 过滤器
 conversation = db.query(Conversation).filter(
     Conversation.id == conversation_id,
-    Conversation.user_id == current_user.id,  # <-- Always filter by user
+    Conversation.user_id == current_user.id,  # <-- 始终按用户过滤
     Conversation.deleted_at.is_(None)
 ).first()
 
 if conversation is None:
-    # Returns 404 whether:
-    # - conversation doesn't exist, OR
-    # - conversation exists but belongs to another user, OR
-    # - conversation was deleted
+    # 无论以下情况都返回 404：
+    # - 对话不存在，或
+    # - 对话存在但属于另一用户，或
+    # - 对话已被删除
     raise HTTPException(status_code=404, detail="conversation_not_found")
 ```
 
@@ -1053,12 +1053,12 @@ if conversation is None:
 }
 ```
 
-**Applied to**:
-- Conversation access (via conversation_id)
-- Anchor diary access (via anchor_diary_id)
-- Any user-scoped resource
+**应用于**：
+- 对话访问（通过 conversation_id）
+- 锚定日记访问（通过 anchor_diary_id）
+- 任何用户范围资源
 
-### 429 Too Many Requests - Rate Limited
+### 429 Too Many Requests - 速率限制
 
 ```json
 {
@@ -1079,11 +1079,11 @@ if conversation is None:
 }
 ```
 
-**Scenario**: User sends too many messages in short time
+**场景**：用户短时间内发送过多消息
 
-**Behavior**: Frontend should show countdown and disable send button
+**行为**：Frontend 应显示倒计时并禁用发送按钮
 
-### 502 Bad Gateway - Model Service Failed
+### 502 Bad Gateway - 模型服务故障
 
 ```json
 {
@@ -1103,11 +1103,11 @@ if conversation is None:
 }
 ```
 
-**Scenario**: AI provider returns 5xx error
+**场景**：AI provider 返回 5xx 错误
 
-**Note**: In production, this should trigger fallback response instead of hard error
+**注意**：在生产环境中，这应触发回退响应而非硬错误
 
-### 504 Gateway Timeout - Model Call Timeout
+### 504 Gateway Timeout - 模型调用超时
 
 ```json
 {
@@ -1127,15 +1127,15 @@ if conversation is None:
 }
 ```
 
-**Scenario**: AI provider takes too long to respond
+**场景**：AI provider 响应时间过长
 
-**Note**: In production, this should trigger fallback response instead of hard error
+**注意**：在生产环境中，这应触发回退响应而非硬错误
 
 ---
 
-# J. Pydantic Schema Design Preview
+# J. Pydantic 架构设计预览
 
-## Schema Hierarchy
+## 架构层次
 
 ```
 backend/app/schemas/chat.py
@@ -1151,7 +1151,7 @@ backend/app/schemas/chat.py
 └── ConversationDetailResponse
 ```
 
-## Schema Definitions
+## 架构定义
 
 ### MessageSource
 ```python
@@ -1166,7 +1166,7 @@ class MessageSource(BaseModel):
     source_type: Literal["anchor", "retrieved"]
 ```
 
-**Note**: Used only in `ChatResponse` for immediate response. For historical sources, use `MessageSourceRead`.
+**注意**：仅用于 `ChatResponse` 的即时响应。对于历史来源，使用 `MessageSourceRead`。
 
 ### RetrievalMetadata
 ```python
@@ -1178,7 +1178,7 @@ class RetrievalMetadata(BaseModel):
     used_in_context: int = Field(ge=0)
 ```
 
-### SafetyCheck (with structured enums)
+### SafetyCheck（带结构化枚举）
 ```python
 class SafetyCheck(BaseModel):
     """Content safety check results with structured enums"""
@@ -1199,7 +1199,7 @@ class MessageRead(BaseModel):
     created_at: datetime
 ```
 
-**Note**: Basic message representation without sources. Use `ChatHistoryItem` for message list with sources.
+**注意**：不带来源的基本消息表示。使用 `ChatHistoryItem` 获取带来源的消息列表。
 
 ### MessageSourceRead
 ```python
@@ -1225,12 +1225,12 @@ class ChatHistoryItem(BaseModel):
     sources: list[MessageSourceRead]  # Empty array for user messages
 ```
 
-**Design Notes**:
-- `sources` included at history item level, not in `MessageRead`
-- User messages have empty `sources` array
-- Assistant messages include all sources from `message_sources` table
-- Snapshot fields preserve source display even after original diary deletion
-- `diary_id` may be NULL after deletion, but snapshots remain intact
+**设计说明**：
+- `sources` 包含在历史项级别，而非 `MessageRead` 中
+- 用户消息的 `sources` 数组为空
+- 助手消息包含来自 `message_sources` 表的所有来源
+- 快照字段在原始日记删除后仍保留来源显示
+- `diary_id` 在删除后可能为 NULL，但快照保持完整
 
 ### ConversationRead
 ```python
@@ -1245,7 +1245,7 @@ class ConversationRead(BaseModel):
     message_count: int = Field(ge=0)
 ```
 
-**Note**: `user_id` not returned - exists only in database and backend authentication context.
+**注意**：`user_id` 不返回 - 仅存在于数据库和 backend 认证上下文中。
 
 ### ChatRequest
 ```python
@@ -1270,7 +1270,7 @@ class ChatRequest(BaseModel):
         return self
 ```
 
-**Note**: Business rule validation in `@model_validator` raises `ValueError`, which FastAPI/Pydantic converts to **422**, not 400. This is standard behavior.
+**注意**：`@model_validator` 中的业务规则验证引发 `ValueError`，FastAPI/Pydantic 将其转换为 **422**，而非 400。这是标准行为。
 
 ### ChatResponse
 ```python
@@ -1284,7 +1284,7 @@ class ChatResponse(BaseModel):
     safety: SafetyCheck
 ```
 
-**Note**: No top-level `created_at` - use `assistant_message.created_at`. No `fallback` fields in v1.
+**注意**：无顶层 `created_at` - 使用 `assistant_message.created_at`。v1 中无 `fallback` 字段。
 
 ### ConversationCreate
 ```python
@@ -1328,18 +1328,18 @@ class MessageListResponse(BaseModel):
     total: int = Field(ge=0)
 ```
 
-**Design Notes**:
-- Returns `ChatHistoryItem` array with message + sources
-- User messages have empty `sources` array
-- Assistant messages include all sources from `message_sources` table
-- Supports pagination for infinite scroll
-- `page` is 1-indexed
+**设计说明**：
+- 返回带 message + sources 的 `ChatHistoryItem` 数组
+- 用户消息的 `sources` 数组为空
+- 助手消息包含来自 `message_sources` 表的所有来源
+- 支持分页以实现无限滚动
+- `page` 从 1 开始
 
 ---
 
-# K. Frontend TypeScript Type Design Preview
+# K. Frontend TypeScript 类型设计预览
 
-## Type Hierarchy
+## 类型层次
 
 ```
 frontend/src/types/chat.ts
@@ -1356,7 +1356,7 @@ frontend/src/types/chat.ts
 └── ConversationDetailResponse
 ```
 
-## Type Definitions
+## 类型定义
 
 ### MessageSource
 ```typescript
@@ -1381,7 +1381,7 @@ export interface RetrievalMetadata {
 }
 ```
 
-### SafetyCheck (with structured enums)
+### SafetyCheck（带结构化枚举）
 ```typescript
 export interface SafetyCheck {
   flagged: boolean;
@@ -1407,8 +1407,7 @@ export interface MessageSourceRead {
 }
 ```
 
-**Note**: Used in `ChatHistoryItem` for historical messages with snapshot data preserved.
-```
+**注意**：用于 `ChatHistoryItem` 以获取保留快照数据的历史消息。
 
 ### ChatMessage
 ```typescript
@@ -1421,7 +1420,7 @@ export interface ChatMessage {
 }
 ```
 
-**Note**: Basic message type without sources. Use `ChatHistoryItem` for message list with sources.
+**注意**：不带来源的基本消息类型。使用 `ChatHistoryItem` 获取带来源的消息列表。
 
 ### ChatHistoryItem
 ```typescript
@@ -1431,12 +1430,12 @@ export interface ChatHistoryItem {
 }
 ```
 
-**Design Notes**:
-- `sources` included at history item level
-- User messages have empty `sources` array
-- Assistant messages include all sources from database
-- Snapshot fields ensure sources displayable even after diary deletion
-- `diary_id` may be null after deletion, but snapshots persist
+**设计说明**：
+- `sources` 包含在历史项级别
+- 用户消息的 `sources` 数组为空
+- 助手消息包含来自数据库的所有来源
+- 快照字段确保即使删除日记后来源仍可显示
+- `diary_id` 删除后可能为 null，但快照持续存在
 
 ### ChatConversation
 ```typescript
@@ -1451,7 +1450,7 @@ export interface ChatConversation {
 }
 ```
 
-**Note**: `user_id` not returned - exists only in database and backend authentication context.
+**注意**：`user_id` 不返回 - 仅存在于数据库和 backend 认证上下文中。
 
 ### ChatRequest
 ```typescript
@@ -1476,7 +1475,7 @@ export interface ChatResponse {
 }
 ```
 
-**Note**: Use `assistant_message.created_at` for response timestamp. No `fallback` fields in v1.
+**注意**：使用 `assistant_message.created_at` 作为响应时间戳。v1 中无 `fallback` 字段。
 
 ### ConversationListResponse
 ```typescript
@@ -1505,7 +1504,7 @@ export interface MessageListResponse {
 }
 ```
 
-### API Response Wrapper
+### API 响应包装器
 ```typescript
 // Already in types/index.ts, reused for chat
 export interface ApiResponse<T> {
@@ -1522,7 +1521,7 @@ export type ConversationDetailApiResponse = ApiResponse<ConversationDetailRespon
 export type MessageListApiResponse = ApiResponse<MessageListResponse>;
 ```
 
-### Frontend Usage Examples
+### Frontend 使用示例
 
 ```typescript
 // First message (new companion conversation)
@@ -1578,16 +1577,16 @@ if (response.data.safety.flagged) {
 
 ---
 
-# L. Permission Constraints
+# L. 权限约束
 
-## User ID Isolation
+## 用户 ID 隔离
 
-### All Requests Must
-1. Include valid JWT token in `Authorization: Bearer` header
-2. Token decoded to get `user_id` from `sub` claim
-3. User object fetched from database to verify active status
+### 所有请求必须
+1. 在 `Authorization: Bearer` header 中包含有效 JWT token
+2. 解码 token 以从 `sub` 声明获取 `user_id`
+3. 从数据库获取用户对象以验证活动状态
 
-### Backend Enforcement
+### Backend 强制执行
 ```python
 # All chat endpoints use this dependency
 @router.post("/chat/messages")
@@ -1600,22 +1599,22 @@ async def send_message(
     pass
 ```
 
-### Forbidden Fields
-- ❌ Frontend MUST NOT send `user_id` in request body
-- ❌ Frontend MUST NOT send `user_id` in query parameters
-- ❌ Backend MUST NOT trust `user_id` if present in request
+### 禁止字段
+- ❌ Frontend 绝不能在请求正文中发送 `user_id`
+- ❌ Frontend 绝不能在查询参数中发送 `user_id`
+- ❌ Backend 绝不信任请求中存在的 `user_id`
 
-## Resource Ownership Validation - Unified 404 Strategy
+## 资源所有权验证 - 统一 404 策略
 
-### Security Principle
-**Always return 404, never 403** for user-scoped resources.
+### 安全原则
+**对用户范围资源始终返回 404，绝不返回 403**。
 
-This prevents:
-- User enumeration (testing valid IDs)
-- Information leakage (revealing which resources exist)
-- "Fishing" attacks (guessing conversation/diary IDs)
+这防止：
+- 用户枚举（测试有效 ID）
+- 信息泄漏（揭示哪些资源存在）
+- "钓鱼"攻击（猜测对话/日记 ID）
 
-### Implementation Pattern
+### 实现模式
 ```python
 # WRONG: Returns 403, reveals resource exists
 conversation = db.query(Conversation).filter(
@@ -1634,9 +1633,9 @@ if conversation is None:
     raise HTTPException(status_code=404)  # Unified 404
 ```
 
-### Applied to All User-Scoped Resources
+### 应用于所有用户范围资源
 
-#### Conversation Access
+#### 对话访问
 ```python
 # Single query with user filter
 conversation = db.query(Conversation).filter(
@@ -1653,7 +1652,7 @@ if conversation is None:
     raise HTTPException(status_code=404, detail="conversation_not_found")
 ```
 
-#### Diary Access (for anchor_diary_id)
+#### 日记访问（用于 anchor_diary_id）
 ```python
 # Single query with user filter
 diary = db.query(Diary).filter(
@@ -1670,7 +1669,7 @@ if diary is None:
     raise HTTPException(status_code=404, detail="diary_not_found")
 ```
 
-#### Retrieval Results Filtering
+#### 检索结果过滤
 ```python
 # All retrieval queries include user filter
 def retrieve_context(user_id: int, query: str):
@@ -1682,7 +1681,7 @@ def retrieve_context(user_id: int, query: str):
     return results
 ```
 
-#### Message Source Validation
+#### 消息来源验证
 ```python
 # Sources already filtered by retrieval query
 # Double-check is defensive programming
@@ -1699,14 +1698,14 @@ for source in raw_sources:
 return validated_sources
 ```
 
-## Architectural Guarantees
+## 架构保证
 
-1. **JWT Validation**: Token must be valid and unexpired
-2. **User Lookup**: User must exist and have `status='active'`
-3. **Query Filtering**: All database queries include `user_id` filter
-4. **Unified 404**: Never reveal if resource exists vs belongs to another user
+1. **JWT 验证**：Token 必须有效且未过期
+2. **用户查找**：用户必须存在且具有 `status='active'`
+3. **查询过滤**：所有数据库查询包含 `user_id` 过滤器
+4. **统一 404**：从不揭示资源是否存在与是否属于另一用户
 
-### Database-Level Safety
+### 数据库级安全
 ```sql
 -- All user-scoped queries follow this pattern
 SELECT * FROM conversations
@@ -1716,7 +1715,7 @@ WHERE user_id = ? AND id = ? AND deleted_at IS NULL;
 -- ON DELETE CASCADE prevents orphaned records
 ```
 
-### Audit Logging (Recommended)
+### 审计日志（推荐）
 ```python
 # Log all resource access attempts
 conversation = db.query(Conversation).filter(
@@ -1737,21 +1736,21 @@ if conversation is None:
 
 ---
 
-# M. Idempotency and Duplicate Submission Handling
+# M. 幂等性和重复提交处理
 
-## Idempotency Considerations
+## 幂等性考虑
 
-### POST /api/v1/chat/messages is NOT Idempotent
+### POST /api/v1/chat/messages 不是幂等的
 
-**Reason**: Each call creates a new message (and potentially conversation).
+**原因**：每次调用都会创建新消息（可能还有对话）。
 
-**Behavior**:
-- Same request sent twice → Two messages created
-- This is intentional for chat (user may genuinely want to repeat themselves)
+**行为**：
+- 同一请求发送两次 → 创建两条消息
+- 这对聊天是有意的（用户可能确实想重复自己）
 
-### Duplicate Submission Prevention (UI Level)
+### 重复提交预防（UI 级别）
 
-#### Frontend Strategy
+#### Frontend 策略
 ```typescript
 // In ChatWindow component
 const [isSending, setIsSending] = useState(false);
@@ -1769,7 +1768,7 @@ async function handleSend() {
 }
 ```
 
-#### Backend Strategy (Optional Idempotency Key)
+#### Backend 策略（可选幂等性密钥）
 ```python
 # Optional: Add idempotency key for critical scenarios
 class ChatRequest(BaseModel):
@@ -1785,11 +1784,11 @@ if request.idempotency_key:
         return previous_response  # Return cached response
 ```
 
-**Recommendation**: Not needed for v1. UI-level prevention is sufficient.
+**建议**：v1 不需要。UI 级别预防就足够了。
 
-### Conversation Title Generation
+### 对话标题生成
 
-**Strategy**: Deterministic based on mode and first message/anchor diary
+**策略**：基于模式和第一条消息/锚定日记确定性生成
 
 ```python
 def generate_conversation_title(mode: str, first_message: str, anchor_diary: Diary | None) -> str:
@@ -1800,40 +1799,40 @@ def generate_conversation_title(mode: str, first_message: str, anchor_diary: Dia
         return first_message[:30] + "..." if len(first_message) > 30 else first_message
 ```
 
-**Result**: Same inputs → Same title (deterministic)
+**结果**：相同输入 → 相同标题（确定性）
 
 ---
 
-# N. Streaming Response - Should It Be in v1?
+# N. 流式响应 - v1 应该包含吗？
 
-## Recommendation: NO streaming in v1
+## 建议：v1 不使用流式响应
 
-### Reasons Against Streaming in v1
+### v1 不使用流式响应的原因
 
-#### 1. Complexity vs Benefit
-- **Streaming requires**:
-  - WebSocket or Server-Sent Events (SSE)
-  - Different client-side handling (progressive rendering)
-  - Error handling complexity (partial failures)
-  - State management complexity
+#### 1. 复杂度 vs 收益
+- **流式响应需要**：
+  - WebSocket 或 Server-Sent Events (SSE)
+  - 不同的客户端处理（渐进式渲染）
+  - 错误处理复杂度（部分失败）
+  - 状态管理复杂度
 
-- **v1 priority**: Get basic chat working reliably first
-- **Streaming benefit**: Better UX for long AI responses
-- **Trade-off**: Not worth the complexity for initial version
+- **v1 优先级**：首先确保基本聊天可靠工作
+- **流式响应收益**：更好的长 AI 响应 UX
+- **权衡**：对初始版本来说不值得
 
-#### 2. Current Project Constraints
-From design docs:
+#### 2. 当前项目约束
+根据设计文档：
 - "第一版不引入 WebSocket"
 - "第一版不引入复杂技术"
-- Focus on stability and course demonstration
+- 专注于稳定性和课程演示
 
-#### 3. AI Response Characteristics
-- Companion/Past Self responses are typically short (100-300 tokens)
-- No complex chain-of-thought needed
-- No code generation or long-form content
-- Standard request/response is sufficient
+#### 3. AI 响应特征
+- Companion/Past Self 响应通常较短（100-300 tokens）
+- 无需复杂的思维链
+- 无代码生成或长篇内容
+- 标准 request/response 就足够了
 
-#### 4. Frontend Simplicity
+#### 4. Frontend 简化
 ```typescript
 // Without streaming (v1)
 const response = await apiRequest<ChatResponse>('/chat/messages', {
@@ -1848,26 +1847,26 @@ const reader = response.body.getReader();
 // Progressive rendering, complex state
 ```
 
-#### 5. Fallback Handling
-Without streaming:
-- Easy to fallback to pre-defined message on timeout
-- Clear success/failure states
+#### 5. 回退处理
+不使用流式响应：
+- 易于在超时时回退到预定义消息
+- 清晰的成功/失败状态
 
-With streaming:
-- Partial response then timeout = confusing UX
-- Need to handle "stalled streams"
+使用流式响应：
+- 部分响应后超时 = 令人困惑的 UX
+- 需要处理"停滞的流"
 
-### When to Add Streaming (v2+)
+### 何时添加流式响应（v2+）
 
-Consider streaming when:
-1. v1 is stable and user-tested
-2. Longer responses needed (e.g., reflection summaries)
-3. User feedback indicates streaming is wanted
-4. Team has capacity to implement properly
+考虑流式响应当：
+1. v1 稳定并经用户测试
+2. 需要更长的响应（例如，反思摘要）
+3. 用户反馈表明需要流式响应
+4. 团队有能力正确实现
 
-### v1 Recommended Approach
+### v1 推荐方法
 
-**Standard REST with loading states**:
+**标准 REST 配合加载状态**：
 
 ```typescript
 // Frontend
@@ -1893,47 +1892,47 @@ async def send_message(...):
     pass
 ```
 
-**Fallback for long wait times**:
-- Show "AI is thinking..." indicator
-- If timeout, use fallback message
-- User experience: brief wait, then complete message
+**长等待时间的回退**：
+- 显示"AI 正在思考..."指示器
+- 如超时，使用回退消息
+- 用户体验：短暂等待，然后完整消息
 
-### Conclusion
+### 结论
 
-**v1**: Standard request/response (no streaming)
-**v2+**: Consider SSE or WebSocket if user testing shows need
-
----
-
-# Summary
-
-This API design provides:
-
-1. **Unified interface** for both chat modes with clear mode distinction
-2. **Single source of truth** for sources (removed duplication from messages)
-3. **Clear status code strategy**: 422 for all validation, 404 for all access issues, 502/504 for AI failures
-4. **Simplified continuing conversation**: Only conversation_id and content needed
-5. **Structured safety enums**: Stable frontend handling with `action` field
-6. **Unified 404 strategy**: Never reveal if resource exists or belongs to another user
-7. **Complete request/response contracts** with all fields specified
-8. **Comprehensive error handling** covering all edge cases
-9. **Strong permission model** enforced at multiple levels
-10. **Pragmatic streaming decision** (deferred to v2)
-11. **Clear type definitions** for both backend and frontend
-12. **Real error codes for AI failures**: 502/504 with user message saved, no fake fallback messages
-13. **Transparency** about what data was retrieved and used
-14. **Standardized field naming**: mode/role/assistant throughout
-15. **Configuration-driven support resources**: No hardcoded contact numbers
-
-The design respects all existing project architecture constraints while providing a solid foundation for the RAG memory chat feature.
+**v1**：标准 request/response（无流式响应）
+**v2+**：如果用户测试表明需要，考虑 SSE 或 WebSocket
 
 ---
 
-# Appendix: Integration Points
+# 总结
 
-## Frontend Usage Examples
+此 API 设计提供：
 
-### Starting a Companion Chat
+1. **统一接口**用于两种聊天模式，具有清晰的模式区分
+2. **单一事实来源**用于来源（从消息中移除重复）
+3. **清晰的状态码策略**：422 用于所有验证，404 用于所有访问问题，502/504 用于 AI 故障
+4. **简化的继续对话**：只需要 conversation_id 和 content
+5. **结构化安全枚举**：使用 `action` 字段稳定 frontend 处理
+6. **统一 404 策略**：从不揭示资源是否存在或属于另一用户
+7. **完整的请求/响应契约**，指定所有字段
+8. **全面的错误处理**，涵盖所有边缘情况
+9. **强权限模型**，在多个级别强制执行
+10. **实用的流式决策**（推迟到 v2）
+11. **清晰的类型定义**，适用于 backend 和 frontend
+12. **AI 故障的真实错误码**：502/504，保存用户消息，无虚假回退消息
+13. **透明度**关于检索和使用了哪些数据
+14. **标准化字段命名**：全程使用 mode/role/assistant
+15. **配置驱动的支持资源**：无硬编码的联系号码
+
+该设计尊重所有现有项目架构约束，同时为 RAG 记忆聊天功能提供坚实基础。
+
+---
+
+# 附录：集成点
+
+## Frontend 使用示例
+
+### 开始 Companion 聊天
 ```typescript
 // First message (new conversation)
 const response = await apiRequest<ChatResponse>('/chat/messages', {
@@ -1950,7 +1949,7 @@ const response = await apiRequest<ChatResponse>('/chat/messages', {
 const conversationId = response.data.conversation.id;
 ```
 
-### Continuing a Chat
+### 继续聊天
 ```typescript
 // Subsequent messages - mode not needed
 const response = await apiRequest<ChatResponse>('/chat/messages', {
@@ -1963,7 +1962,7 @@ const response = await apiRequest<ChatResponse>('/chat/messages', {
 });
 ```
 
-### Starting Past Self Chat
+### 开始 Past Self 聊天
 ```typescript
 // From MemoryDetailPage, when user clicks "Chat with past self"
 const response = await apiRequest<ChatResponse>('/chat/messages', {
@@ -1977,7 +1976,7 @@ const response = await apiRequest<ChatResponse>('/chat/messages', {
 });
 ```
 
-### Handling Safety Flags
+### 处理安全标记
 ```typescript
 const response = await sendChatMessage(request);
 
@@ -2002,9 +2001,9 @@ if (response.data.safety.flagged) {
 }
 ```
 
-**Important**: Support resources and emergency contacts are configuration-driven, fetched from backend. Do NOT hardcode phone numbers or URLs in frontend.
+**重要**：支持资源和紧急联系人是配置驱动的，从 backend 获取。不要在 frontend 中硬编码电话号码或 URL。
 
-### Listing Conversations
+### 列出对话
 ```typescript
 // On chat history page
 const response = await apiRequest<ConversationListResponse>('/chat/conversations', {
@@ -2015,162 +2014,162 @@ const response = await apiRequest<ConversationListResponse>('/chat/conversations
 
 ---
 
-# Next Steps After Design Approval
+# 设计批准后的后续步骤
 
-1. **Backend Implementation**
-   - Create `models/chat.py` with Conversation and Message
-   - Create `schemas/chat.py` with all Pydantic schemas
-   - Create `services/chat_service.py` with business logic
-   - Create `services/retrieval_service.py` with diary retrieval
-   - Create `routers/chat.py` with all endpoints
-   - Add tests in `tests/test_chat.py`
+1. **Backend 实现**
+   - 创建 `models/chat.py` 包含 Conversation 和 Message
+   - 创建 `schemas/chat.py` 包含所有 Pydantic schemas
+   - 创建 `services/chat_service.py` 包含业务逻辑
+   - 创建 `services/retrieval_service.py` 包含日记检索
+   - 创建 `routers/chat.py` 包含所有端点
+   - 在 `tests/test_chat.py` 中添加测试
 
-2. **Frontend Implementation**
-   - Create `types/chat.ts` with TypeScript types
-   - Create `api/chat.ts` with API client functions
-   - Enhance `ChatPage` with real message persistence
-   - Enhance `MemoryDetailPage` with past self chat
-   - Create `ChatWindow` and `MessageBubble` components
+2. **Frontend 实现**
+   - 创建 `types/chat.ts` 包含 TypeScript 类型
+   - 创建 `api/chat.ts` 包含 API 客户端函数
+   - 增强 `ChatPage` 实现真实消息持久化
+   - 增强 `MemoryDetailPage` 实现 past self 聊天
+   - 创建 `ChatWindow` 和 `MessageBubble` 组件
 
-3. **Testing**
-   - Backend unit tests for all endpoints
-   - Backend integration tests for conversation flow
-   - Frontend component tests
-   - End-to-end user flow tests
+3. **测试**
+   - 所有端点的 Backend 单元测试
+   - 对话流程的 Backend 集成测试
+   - Frontend 组件测试
+   - 端到端用户流程测试
 
-4. **Documentation**
-   - Update API documentation
-   - Update user stories
-   - Create demo script for defense
+4. **文档**
+   - 更新 API 文档
+   - 更新用户故事
+   - 创建演示脚本用于答辩
 
 ---
 
-# API Contract Freeze Checklist
+# API 契约冻结检查表
 
-This checklist confirms that the API design is frozen and ready for implementation.
+此检查清单确认 API 设计已冻结并准备实现。
 
-## ✅ Paths Fixed
+## ✅ 路径已确定
 
-- [x] `POST /api/v1/chat/messages` - Send message
-- [x] `GET /api/v1/chat/conversations` - List conversations
-- [x] `POST /api/v1/chat/conversations` - Create conversation
-- [x] `GET /api/v1/chat/conversations/{id}` - Get conversation metadata
-- [x] `GET /api/v1/chat/conversations/{id}/messages` - Get messages (paginated)
-- [x] `DELETE /api/v1/chat/conversations/{id}` - Delete conversation
+- [x] `POST /api/v1/chat/messages` - 发送消息
+- [x] `GET /api/v1/chat/conversations` - 列出对话
+- [x] `POST /api/v1/chat/conversations` - 创建对话
+- [x] `GET /api/v1/chat/conversations/{id}` - 获取对话元数据
+- [x] `GET /api/v1/chat/conversations/{id}/messages` - 获取消息（分页）
+- [x] `DELETE /api/v1/chat/conversations/{id}` - 删除对话
 
-## ✅ Field Names Fixed
+## ✅ 字段名已确定
 
-### Request Fields
+### 请求字段
 - [x] `conversation_id: integer | null`
 - [x] `mode: "companion" | "past_self" | null`
 - [x] `content: string`
 - [x] `use_memory: boolean`
 - [x] `anchor_diary_id: integer | null`
 
-### Response Fields
-- [x] `conversation.mode` (not `conversation_type`)
-- [x] `message.role` (not `sender`)
-- [x] `role: "user" | "assistant"` (not `"user" | "ai"`)
+### 响应字段
+- [x] `conversation.mode`（非 `conversation_type`）
+- [x] `message.role`（非 `sender`）
+- [x] `role: "user" | "assistant"`（非 `"user" | "ai"`）
 - [x] `retrieval.used: boolean`
 - [x] `retrieval.strategy: string`
 - [x] `retrieval.total_found: integer`
 - [x] `retrieval.used_in_context: integer`
 - [x] `source.source_type: "anchor" | "retrieved"`
 
-### Excluded Fields
-- [x] `user_id` removed from all responses (exists in DB and auth context only)
-- [x] Top-level `created_at` removed (use `assistant_message.created_at`)
-- [x] `retrieval.query` removed (internal query not exposed)
-- [x] `fallback`, `fallback_reason` removed (v1 uses real error codes)
+### 排除字段
+- [x] `user_id` 从所有响应中移除（仅存在于 DB 和 auth 上下文）
+- [x] 顶层 `created_at` 移除（使用 `assistant_message.created_at`）
+- [x] `retrieval.query` 移除（内部查询不公开）
+- [x] `fallback`、`fallback_reason` 移除（v1 使用真实错误码）
 
-## ✅ Enums Fixed
+## ✅ 枚举已确定
 
-### Mode Enum
+### 模式枚举
 - [x] `"companion"`
 - [x] `"past_self"`
 
-### Role Enum
+### 角色枚举
 - [x] `"user"`
 - [x] `"assistant"`
 
-### Source Type Enum
+### 来源类型枚举
 - [x] `"anchor"`
 - [x] `"retrieved"`
 
-### Safety Level Enum
+### 安全级别枚举
 - [x] `"none"`
 - [x] `"low"`
 - [x] `"medium"`
 - [x] `"high"`
 
-### Safety Category Enum
+### 安全类别枚举
 - [x] `"emotional_distress"`
 - [x] `"self_harm_risk"`
 - [x] `"violence_risk"`
 - [x] `null`
 
-### Safety Action Enum
+### 安全操作枚举
 - [x] `"none"`
 - [x] `"show_notice"`
 - [x] `"suggest_support"`
 - [x] `"trigger_emergency_flow"`
 
-## ✅ Status Codes Fixed
+## ✅ 状态码已确定
 
-### Success Codes
-- [x] `200 OK` - POST /api/v1/chat/messages (all cases)
+### 成功码
+- [x] `200 OK` - POST /api/v1/chat/messages（所有情况）
 - [x] `200 OK` - GET /api/v1/chat/conversations
 - [x] `201 Created` - POST /api/v1/chat/conversations
 
-### Error Codes
-- [x] `401 Unauthorized` - Authentication failures
-- [x] `404 Not Found` - Resource not found OR access denied (unified strategy)
-- [x] `422 Unprocessable Entity` - ALL validation failures (including business rules in @model_validator)
-- [x] `429 Too Many Requests` - Rate limiting
-- [x] `502 Bad Gateway` - AI provider error
-- [x] `504 Gateway Timeout` - AI timeout
+### 错误码
+- [x] `401 Unauthorized` - 认证失败
+- [x] `404 Not Found` - 资源未找到或访问被拒绝（统一策略）
+- [x] `422 Unprocessable Entity` - 所有验证失败（包括 @model_validator 中的业务规则）
+- [x] `429 Too Many Requests` - 速率限制
+- [x] `502 Bad Gateway` - AI provider 错误
+- [x] `504 Gateway Timeout` - AI 超时
 
-### Reserved Codes
-- [x] `400 Bad Request` - Reserved for future use (not used in v1)
+### 保留码
+- [x] `400 Bad Request` - 保留供将来使用（v1 中未使用）
 
-## ✅ Permission Strategy Fixed
+## ✅ 权限策略已确定
 
-- [x] All requests require valid JWT token
-- [x] User ID from token `sub` claim
-- [x] All database queries filtered by `user_id`
-- [x] Unified 404 strategy (never 403, never reveal existence)
-- [x] `user_id` not returned in any response
+- [x] 所有请求需要有效 JWT token
+- [x] User ID 来自 token `sub` 声明
+- [x] 所有数据库查询按 `user_id` 过滤
+- [x] 统一 404 策略（从不 403，从不揭示存在性）
+- [x] `user_id` 不在任何响应中返回
 
-## ✅ AI Failure Strategy Fixed
+## ✅ AI 故障策略已确定
 
-- [x] Timeout: Save user message, return 504, no assistant message created
-- [x] Provider error: Save user message, return 502, no assistant message created
-- [x] No `success=true` with fallback messages
-- [x] Frontend shows failure and allows retry
-- [x] No fake assistant messages polluting chat history
+- [x] 超时：保存用户消息，返回 504，不创建助手消息
+- [x] Provider 错误：保存用户消息，返回 502，不创建助手消息
+- [x] 无 `success=true` 配合回退消息
+- [x] Frontend 显示故障并允许重试
+- [x] 无虚假助手消息污染聊天历史
 
-## ✅ v1 Scope Fixed
+## ✅ v1 范围已确定
 
-- [x] No streaming (deferred to v2)
-- [x] Standard request/response only
-- [x] Real error codes (no success=true fallbacks)
-- [x] Configuration-driven support resources (no hardcoded contacts)
+- [x] 无流式响应（推迟到 v2）
+- [x] 仅标准 request/response
+- [x] 真实错误码（无 success=true 回退）
+- [x] 配置驱动的支持资源（无硬编码联系人）
 
-## ✅ Synchronization Points
+## ✅ 同步点
 
-### Any future change to API contract MUST update ALL of:
-1. [x] Backend Pydantic schemas (`backend/app/schemas/chat.py`)
-2. [x] Frontend TypeScript types (`frontend/src/types/chat.ts`)
-3. [x] This design document (`docs/vibe-logs/log-07-rag-chat-api-design.md`)
-4. [x] API tests (backend and frontend)
-5. [x] Component implementations that use the API
+### API 契约的任何未来更改必须更新所有：
+1. [x] Backend Pydantic schemas（`backend/app/schemas/chat.py`）
+2. [x] Frontend TypeScript types（`frontend/src/types/chat.ts`）
+3. [x] 此设计文档（`docs/vibe-logs/log-07-rag-chat-api-design.md`）
+4. [x] API 测试（backend 和 frontend）
+5. [x] 使用 API 的组件实现
 
 ---
 
-## API Contract Status: **FROZEN**
+## API 契约状态：**已冻结**
 
-This API design is now frozen. Implementation should proceed exactly as specified. Any changes to the contract require:
-1. Update this checklist
-2. Update all synchronization points
-3. Team review and approval
-4. Version increment (v1.2 → v1.3)
+此 API 设计现已冻结。实现应完全按照指定进行。契约的任何更改需要：
+1. 更新此检查清单
+2. 更新所有同步点
+3. 团队审查和批准
+4. 版本递增（v1.2 → v1.3）
