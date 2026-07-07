@@ -121,7 +121,7 @@
 |------|------|------|------|
 | POST | `/api/v1/auth/login` | 公开 | 验证凭据并返回访问令牌 |
 
-**文件位置**: [backend/app/routers/auth.py:37-46](backend/app/routers/auth.py#L37-L46)
+**文件位置**: [backend/app/routers/auth.py:37-46](../../backend/app/routers/auth.py#L37-L46)
 
 **请求体** (`UserLogin`):
 - `email`: 邮箱
