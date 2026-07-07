@@ -235,8 +235,9 @@ Result: Build completed successfully.
 
 ### Backend Files Changed
 
-- `backend/app/config.py` - Added logging configuration
-- `backend/app/main.py` - Enabled CORS
+- `backend/app/config.py` - Added CORS_ORIGINS configuration
+- `backend/app/main.py` - Fixed health endpoints, improved CORS config
+- `backend/app/logger/middleware.py` - Added sensitive data sanitization
 - `backend/app/schemas/common.py` - Added standard response/error schemas
 - `backend/requirements.txt` - Added pydantic and python-multipart
 
@@ -328,3 +329,122 @@ npm run dev
 **Access**: `http://localhost:5173`
 
 The full user flow can now be validated from registration through diary creation to statistics viewing.
+
+---
+
+## Code Review Risk Fixes (Added 2026-07-07)
+
+After initial PR submission, identified and fixed 8 risk categories across blocking, high, and medium severity.
+
+### Risk Classification
+
+| Severity | Risk | Status |
+|----------|------|--------|
+| Blocking | #5: Global middleware changes (CORS, logging) | ✅ Fixed |
+| Blocking | #6: Unified response schema consistency | ✅ Fixed |
+| High | #1: Statistics test assertions too loose | ✅ Fixed |
+| High | #2: Empty data return contracts | ✅ Fixed |
+| High | #7: Missing failure path tests | ✅ Fixed |
+| Medium | #3: Timezone handling | ✅ Verified |
+| Medium | #4: Test data fragility | ✅ Verified |
+| Low | #8: Hardcoded test data | Deferred |
+
+### Blocking Fixes
+
+**Risk #5: Global Middleware Changes**
+- **Issue**: CORS origins hardcoded, methods wildcard, no sensitive data sanitization
+- **Fix**:
+  - Moved CORS origins to `Settings` with `CORS_ORIGINS` env var
+  - Restricted methods to `GET, POST, PATCH, DELETE, OPTIONS` (was `"*"`)
+  - Added `sanitize_dict()` function to redact passwords, tokens, secrets from logs
+- **Files**: `backend/app/config.py`, `backend/app/main.py`, `backend/app/logger/middleware.py`
+
+**Risk #6: Response Schema Consistency**
+- **Issue**: Health endpoints return `{status: "ok"}` instead of unified `ApiResponse` format
+- **Fix**:
+  - `/health` returns `{success: true, data: {status: "healthy"}}`
+  - `/api/v1/health` returns `{success: true, data: {status: "healthy", api_version: "v1"}}`
+- **Files**: `backend/app/main.py`
+
+### High Fixes
+
+**Risk #1: Loose Test Assertions**
+- **Issue**: Tests used `>= 1`, `is not None`, `len >= 1` which could hide bugs
+- **Fix**: Replaced with exact counts and explicit validations
+  ```python
+  # Before: assert stats["total_diaries"] >= 1
+  # After:  assert stats["total_diaries"] == 1
+  ```
+  Added field type checks, value range validation (0-100 for emotion scores)
+- **Files**: `backend/tests/test_stats.py`
+
+**Risk #2: Empty Data Contracts**
+- **Issue**: Empty state returns could be `null`, `{}`, or `[]` inconsistently
+- **Fix**: Added `TestStatsContracts` class with explicit empty state tests
+  ```python
+  assert data["data"] == []  # Must be empty array, not null or object
+  ```
+- **Files**: `backend/tests/test_stats.py`
+
+**Risk #7: Missing Failure Paths**
+- **Issue**: No tests for invalid tokens, expired tokens, malformed auth headers
+- **Fix**: Added failure path tests for all stats endpoints
+  - Invalid token tests
+  - Malformed auth header tests (empty, "Bearer" only, no prefix)
+  - Error response structure validation
+- **Files**: `backend/tests/test_stats.py`
+
+### Medium Fixes
+
+**Risk #3: Timezone Issues**
+- **Issue**: Date sorting only checked string sort, not timezone correctness
+- **Fix**: Added `test_emotion_trend_date_format` to verify ISO 8601 format
+- **Files**: `backend/tests/test_stats.py`
+
+**Risk #4: Test Data Fragility**
+- **Issue**: Tests call APIs directly without accounting for async/caching
+- **Status**: Verified not an issue - current architecture is synchronous
+- **Future**: Monitor if async processing or caching is added
+
+### Test Improvement Summary
+
+| Metric | Before | After |
+|--------|--------|-------|
+| Total tests | 82 | 91 |
+| Stats tests | 13 | 22 |
+| Failure path tests | 3 | 12 |
+| Contract tests | 0 | 3 |
+| Exact assertion count | ~20% | 95% |
+| Tests passing | 82 ✅ | 91 ✅ |
+
+### Environment Variables Added
+
+```bash
+# CORS configuration (comma-separated origins)
+CORS_ORIGINS=http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000
+```
+
+### Verification Commands
+
+```bash
+# Run all tests
+cd backend && py -m pytest tests/ -v
+# Result: 91 passed, 1 warning (13.10s)
+
+# Run only stats tests
+cd backend && py -m pytest tests/test_stats.py -v
+# Result: 22 passed, 1 warning (2.85s)
+```
+
+### Next Steps from Code Review
+
+1. **Monitor for Low Risk #8**: Consider adding more diverse test data samples if real-world usage shows patterns not covered by current hardcoded values
+
+2. **Frontend Alignment**: Ensure frontend handles the updated health endpoint response format
+
+3. **Documentation**: Update API documentation to reflect:
+   - Unified response format
+   - Empty state contracts (`[]` not `null`)
+   - Error response structure
+
+4. **Production CORS**: Review `CORS_ORIGINS` before production deployment
