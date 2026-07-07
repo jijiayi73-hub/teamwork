@@ -2,6 +2,17 @@
 
 本文档作为 Inner Garden 的 API 与技术实现指导，统一前后端、数据库、AI 与测试的设计边界。实现时优先遵循本文的约定，避免技术栈反复变更导致联调成本上升。
 
+## 实现状态
+
+**已实现**：
+- 用户认证 (User, Entry, EmotionAnalysis, Diary)
+- 统计接口 (Stats)
+- 管理员接口 (Admin)
+- RAG Chat 接口 (Conversation, Message, MessageSource)
+
+**规划中，尚未实现**：
+- 周期报告功能 (Report) - 文档中保留 generate_report 接口设计，但后端尚未实现
+
 ## 1. 最终技术栈
 
 前端统一采用 React、TypeScript、Vite、React Router、Axios、Zustand、Ant Design 和 ECharts。前端职责是页面展示、状态管理、表单交互、路由切换和图表渲染，不承载业务计算逻辑。

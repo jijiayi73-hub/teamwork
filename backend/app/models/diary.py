@@ -29,6 +29,11 @@ class User(Base):
     entries: Mapped[List["Entry"]] = relationship(back_populates="user")
     diaries: Mapped[List["Diary"]] = relationship(back_populates="user")
 
+    # Import Conversation to avoid circular import
+    # from typing import TYPE_CHECKING
+    # if TYPE_CHECKING:
+    #     from .chat import Conversation
+
 
 class Entry(Base):
     __tablename__ = "entries"
@@ -92,3 +97,8 @@ class Diary(Base):
     user: Mapped[User] = relationship(back_populates="diaries")
     entry: Mapped[Entry] = relationship(back_populates="diary")
     analysis: Mapped[EmotionAnalysis] = relationship(back_populates="diary")
+
+    # Import MessageSource to avoid circular import
+    # from typing import TYPE_CHECKING
+    # if TYPE_CHECKING:
+    #     from .chat import MessageSource

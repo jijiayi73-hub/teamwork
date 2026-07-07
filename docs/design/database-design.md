@@ -2,6 +2,15 @@
 
 本文档根据 `docs/design/api-design.md` 设计 Inner Garden 第一版数据库结构。数据库设计目标是支撑登录鉴权、原始输入保存、AI 情绪分析、确认后的日记、统计图表、周期报告和管理员后台。
 
+## 实现状态
+
+**已实现**：
+- users, entries, emotion_analyses, diaries 表
+- conversations, messages, message_sources 表 (RAG Chat)
+
+**规划中，尚未实现**：
+- reports 表 (周期报告功能) - 文档中保留设计，但表尚未创建
+
 第一版开发与课程演示阶段使用 SQLite，后端必须通过 SQLAlchemy 2 访问数据库，并通过 Alembic 管理结构变更。字段命名统一使用 snake_case，时间字段统一保存 UTC 时间，接口返回时再转换为带时区的 ISO 8601 字符串。
 
 ## 1. 设计原则
