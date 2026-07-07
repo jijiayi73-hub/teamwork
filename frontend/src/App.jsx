@@ -122,20 +122,20 @@ function HomePage() {
 
 function ChatPage() {
   const [messages, setMessages] = useState([
-    { sender: 'ai', content: '慢慢说，我在听。今天发生了什么，让你想把它留下来？' },
+    { content: '慢慢说，我在听。今天发生了什么？' },
   ]);
   const [text, setText] = useState('');
-  const [status, setStatus] = useState('');
+  const [note, setNote] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
+  const [isListening, setIsListening] = useState(false);
 
   async function handleSend() {
     const rawContent = text.trim();
     if (!rawContent || isSending) return;
 
     setIsSending(true);
-    setStatus('正在通过 POST /api/v1/entries 保存并分析这段倾诉...');
-    setMessages((current) => [...current, { sender: 'user', content: rawContent }]);
+    setNote('');
     setText('');
 
     try {
@@ -149,19 +149,22 @@ function ChatPage() {
           content: entry.draft_content,
           analysis: entry.analysis,
           raw_content: entry.raw_content,
+          image_preview: imagePreview,
         }),
       );
       setMessages((current) => [
         ...current,
-        { sender: 'ai', content: `${entry.analysis.summary} ${entry.analysis.suggestion}` },
+        { content: buildCompanionReply(rawContent, entry.analysis) },
       ]);
-      setStatus('已接入真实后端：POST /api/v1/entries 返回了分析和日记草稿。');
+      setNote('已为你轻轻整理好这一段。');
     } catch (error) {
+      const mockDraft = buildLocalDraft(rawContent, imagePreview);
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(mockDraft));
       setMessages((current) => [
         ...current,
-        { sender: 'ai', content: '我先把这段话轻轻接住。后端暂时不可用时，这里会保留为本地演示回复。' },
+        { content: '我听见了。谢谢你把这一点放在这里，它不需要马上被解释清楚，只要先被温柔地接住。' },
       ]);
-      setStatus(`后端调用失败：${error.message}`);
+      setNote(`后端暂时没有回应，已先用本地 mock 保存这段记录：${error.message}`);
     } finally {
       setIsSending(false);
     }
@@ -170,88 +173,127 @@ function ChatPage() {
   function handleImageUpload(event) {
     const file = event.target.files?.[0];
     if (!file) return;
-    setImagePreview(URL.createObjectURL(file));
-    setStatus('图片已做本地预览；当前后端缺少图片上传/文件保存 API，已记录到 vibe log。');
+    const reader = new FileReader();
+    reader.onload = () => {
+      const imageData = reader.result;
+      setImagePreview(imageData);
+      setNote('图片已作为本地预览保存。');
+    };
+    reader.readAsDataURL(file);
   }
 
-  function handleNewQuestion() {
-    setMessages((current) => [
-      ...current,
-      { sender: 'ai', content: '如果愿意的话，可以从一个很小的画面开始：今天哪一刻最让你停顿了一下？' },
-    ]);
-    setStatus('“换个问题问我”当前使用本地 mock；后端缺少 /api/v1/chat/next-question。');
+  function handleVoiceInput() {
+    const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+    if (!SpeechRecognition) {
+      setText((current) => `${current}${current ? ' ' : ''}今天有一些说不清的感受，我想先慢慢放在这里。`);
+      setMessages((current) => [...current, { content: '没关系，语音现在先用本地文字替代。你可以继续补一点点，我会跟着你的节奏。' }]);
+      setNote('当前浏览器不支持本地语音识别，已填入一段 mock 语音文本。');
+      return;
+    }
+
+    const recognition = new SpeechRecognition();
+    recognition.lang = 'zh-CN';
+    recognition.interimResults = false;
+    recognition.maxAlternatives = 1;
+    setIsListening(true);
+    setNote('正在听你说，结束后会自动放进输入框。');
+    recognition.onresult = (event) => {
+      const transcript = event.results?.[0]?.[0]?.transcript || '';
+      setText((current) => `${current}${current ? ' ' : ''}${transcript}`.trim());
+    };
+    recognition.onerror = () => {
+      setNote('语音识别没有成功，可以先用文字记录。');
+    };
+    recognition.onend = () => {
+      setIsListening(false);
+    };
+    recognition.start();
   }
 
   function handleGenerateDiary() {
+    const rawContent = text.trim();
+    if (rawContent && !window.localStorage.getItem(DRAFT_KEY)) {
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(buildLocalDraft(rawContent, imagePreview)));
+    }
+
     if (!window.localStorage.getItem(DRAFT_KEY)) {
-      setStatus('请先发送一段文字。发送按钮会调用 /api/v1/entries 并生成可保存的日记草稿。');
+      setNote('先写下一点点，或者用语音留下一句话。');
       return;
     }
     window.location.hash = '#/diary-result';
   }
 
   return (
-    <PageShell
-      eyebrow="AI Companion Chat"
-      title="慢慢说，我在听"
-      subtitle="发送按钮已对接真实后端 /api/v1/entries；缺失的聊天追问和图片 API 会保留为本地演示。"
-    >
-      <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
-        <section className="panel flex min-h-[520px] flex-col">
-          <div className="flex-1 space-y-4 overflow-y-auto pr-1">
+    <section className="relative z-10 flex min-h-[calc(100vh-96px)] items-center justify-center px-5 pb-12 pt-4 lg:px-14">
+      {imagePreview && (
+        <div
+          aria-hidden="true"
+          className="chat-photo-backdrop"
+          style={{ backgroundImage: `url(${imagePreview})` }}
+        />
+      )}
+
+      <div className="chat-stage">
+        <div className="text-center">
+          <p className="text-xs uppercase tracking-[0.34em] text-[#c8e0ff]/70">AI Companion Chat</p>
+          <h1 className="mt-4 font-display text-4xl leading-tight text-white sm:text-5xl">今天想记录什么？</h1>
+          <p className="mt-3 text-sm text-white/58">亦言亦思皆为序章</p>
+        </div>
+
+        <section className="chat-window">
+          <div className="ai-notification-list">
             {messages.map((message, index) => (
-              <div
-                className={`chat-bubble ${message.sender === 'user' ? 'chat-bubble-user' : 'chat-bubble-ai'}`}
-                key={`${message.sender}-${index}`}
-              >
-                {message.content}
+              <div className="ai-notification" key={`${message.content}-${index}`}>
+                <span className="ai-notification-dot" />
+                <p>{message.content}</p>
               </div>
             ))}
           </div>
 
-          <div className="mt-5 grid gap-3">
+          {note && <p className="chat-note">{note}</p>}
+
+          <div className="composer-shell">
+            <label className="composer-icon-button" title="上传图片">
+              <input accept="image/*" className="hidden" onChange={handleImageUpload} type="file" />
+              <span aria-hidden="true">＋</span>
+            </label>
             <textarea
-              className="input-surface min-h-28 resize-none"
+              className="composer-input"
               onChange={(event) => setText(event.target.value)}
-              placeholder="慢慢说，今天发生了什么？"
+              onKeyDown={(event) => {
+                if (event.key === 'Enter' && !event.shiftKey) {
+                  event.preventDefault();
+                  handleSend();
+                }
+              }}
+              placeholder="慢慢说，我在听。今天发生了什么？"
               value={text}
             />
-            <div className="flex flex-wrap gap-3">
-              <button className="primary-action" disabled={isSending} onClick={handleSend} type="button">
-                {isSending ? '发送中...' : '发送'}
-              </button>
-              <label className="secondary-action cursor-pointer">
-                上传图片
-                <input accept="image/*" className="hidden" onChange={handleImageUpload} type="file" />
-              </label>
-              <button className="secondary-action" onClick={handleNewQuestion} type="button">
-                换个问题问我
-              </button>
-              <button className="secondary-action" onClick={handleGenerateDiary} type="button">
-                我说完了，生成日记
-              </button>
-            </div>
+            <button
+              aria-label={isListening ? '正在语音输入' : '语音输入'}
+              className={`composer-icon-button ${isListening ? 'is-listening' : ''}`}
+              onClick={handleVoiceInput}
+              type="button"
+            >
+              <span aria-hidden="true">⌁</span>
+            </button>
+            <button
+              aria-label="发送"
+              className="composer-send-button"
+              disabled={isSending || !text.trim()}
+              onClick={handleSend}
+              type="button"
+            >
+              <span aria-hidden="true">{isSending ? '…' : '↑'}</span>
+            </button>
           </div>
-        </section>
 
-        <aside className="panel space-y-5">
-          <div>
-            <p className="text-xs uppercase tracking-[0.28em] text-[#c8e0ff]/70">Backend Link</p>
-            <p className="mt-3 text-sm leading-6 text-white/68">
-              可用接口：登录/注册、创建 entry、保存 diary、读取 diary 列表。
-            </p>
-          </div>
-          {imagePreview ? (
-            <img alt="Uploaded memory preview" className="h-44 w-full rounded-2xl object-cover" src={imagePreview} />
-          ) : (
-            <div className="flex h-44 items-center justify-center rounded-2xl border border-dashed border-white/20 bg-white/[0.04] text-sm text-white/48">
-              今日图片预览
-            </div>
-          )}
-          <StatusText>{status || 'Ready. 发送一段文字后会自动创建 demo 用户会话并调用后端。'}</StatusText>
-        </aside>
+          <button className="generate-link" onClick={handleGenerateDiary} type="button">
+            我说完了，生成日记
+          </button>
+        </section>
       </div>
-    </PageShell>
+    </section>
   );
 }
 
@@ -321,6 +363,36 @@ function DiaryResultPage() {
       </div>
     </PageShell>
   );
+}
+
+function buildCompanionReply(rawContent, analysis) {
+  if (analysis?.summary && analysis?.suggestion) {
+    return `${analysis.summary} ${analysis.suggestion}`;
+  }
+
+  if (rawContent.length < 18) {
+    return '我听见了。哪怕只是很短的一句，也已经是一颗小小的种子。';
+  }
+
+  return '我把你说的这些先放在心里了。它们不需要立刻变得整齐，慢慢来就好。';
+}
+
+function buildLocalDraft(rawContent, imagePreview) {
+  return {
+    entry_id: `local-${Date.now()}`,
+    title: '亦言亦思皆为序章',
+    content: `今天，我把一些还没有完全整理好的感受留在这里。\n\n${rawContent}\n\n也许它们还不是答案，但它们已经让我更靠近此刻的自己一点。`,
+    analysis: {
+      primary_emotion: 'calm',
+      summary: '这是一段本地 mock 的温柔整理，用来保证前端演示流程可以继续。',
+      suggestion: '先不用急着判断这些感受，只要把它们稳稳放下。',
+      emotion_score: 58,
+      risk_level: 'low',
+    },
+    raw_content: rawContent,
+    image_preview: imagePreview,
+    source: 'local_mock',
+  };
 }
 
 function MemoryGardenPage() {
