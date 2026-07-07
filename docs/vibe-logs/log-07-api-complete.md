@@ -73,7 +73,7 @@
 | GET | `/health` | 公开 | 系统健康检查 |
 | GET | `/api/v1/health` | 公开 | API 健康检查 |
 
-**文件位置**: [backend/app/main.py:18-25](backend/app/main.py#L18-L25)
+**文件位置**: [backend/app/main.py:18-25](../../backend/app/main.py#L18-L25)
 
 **返回格式**:
 ```json
