@@ -1,10 +1,10 @@
 from __future__ import annotations
 
-from datetime import datetime, timezone
+from datetime import date, datetime, timezone
 from enum import Enum
 from typing import List, Optional
 
-from sqlalchemy import Boolean, Float, ForeignKey, Integer, String, Text, CheckConstraint, Index, UniqueConstraint
+from sqlalchemy import Boolean, Date, Float, ForeignKey, Integer, String, Text, CheckConstraint, Index, UniqueConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from ..database import Base
@@ -50,7 +50,7 @@ class Conversation(Base):
     mode: Mapped[str] = mapped_column(String(20), nullable=False)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     anchor_diary_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("diaries.id", ondelete="SET NULL"),
+        ForeignKey("diaries.id", ondelete="RESTRICT"),
         nullable=True,
         index=True
     )
@@ -76,6 +76,13 @@ class Conversation(Base):
 
     __table_args__ = (
         CheckConstraint("mode IN ('companion', 'past_self')", name="ck_conversation_mode"),
+        # Ensure mode and anchor_diary_id are consistent:
+        # - companion mode must NOT have an anchor diary
+        # - past_self mode MUST have an anchor diary
+        CheckConstraint(
+            "(mode = 'companion' AND anchor_diary_id IS NULL) OR (mode = 'past_self' AND anchor_diary_id IS NOT NULL)",
+            name="ck_conversation_mode_anchor"
+        ),
         Index("idx_conversations_user_deleted_updated", "user_id", "deleted_at", "updated_at"),
     )
 
@@ -117,6 +124,14 @@ class Message(Base):
 
 
 class MessageSource(Base):
+    """Source diary snapshot for a message.
+
+    Snapshot semantics:
+    - When a diary is used as a source, its relevant fields are snapshotted.
+    - This allows historical sources to be displayed even if the original diary is deleted.
+    - diary_id may become NULL after diary deletion, but snapshots remain intact.
+    - Sources should only be associated with assistant messages (enforced at service layer).
+    """
     __tablename__ = "message_sources"
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
@@ -130,7 +145,11 @@ class MessageSource(Base):
         index=True
     )
     source_type: Mapped[str] = mapped_column(String(20), nullable=False)
-    excerpt: Mapped[str] = mapped_column(Text, nullable=False)
+    # Snapshot fields - capture the state of the diary at the time of message creation
+    diary_date_snapshot: Mapped[Optional[date]] = mapped_column(Date, nullable=True)
+    title_snapshot: Mapped[str] = mapped_column(String(120), nullable=False)
+    excerpt_snapshot: Mapped[str] = mapped_column(Text, nullable=False)
+    emotion_label_snapshot: Mapped[Optional[str]] = mapped_column(String(30), nullable=True)
     relevance_score: Mapped[float] = mapped_column(Float, nullable=False)
     rank: Mapped[int] = mapped_column(Integer, nullable=False)
     created_at: Mapped[datetime] = mapped_column(
@@ -144,5 +163,8 @@ class MessageSource(Base):
         CheckConstraint("source_type IN ('anchor', 'retrieved')", name="ck_source_type"),
         CheckConstraint("relevance_score >= 0.0 AND relevance_score <= 1.0", name="ck_relevance_score"),
         CheckConstraint("rank >= 1", name="ck_rank"),
+        # Ensure no duplicate diary per message (when diary_id is not null)
         UniqueConstraint("message_id", "diary_id", name="uq_message_source_message_diary"),
+        # Ensure no duplicate rank per message (for consistent ordering)
+        UniqueConstraint("message_id", "rank", name="uq_message_source_message_rank"),
     )

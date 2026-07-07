@@ -1,10 +1,11 @@
 # Inner Garden Chat API Design Document
 
-## Version: 1.2 (API Contract Freeze)
+## Version: 1.2.1 (Historical Sources Support)
 ## Date: 2026-07-08
-## Status: Design Phase - No Code Changes
+## Status: Design Phase - Database Schema Fixed
 
 ## Changelog
+- v1.2.1: Added historical message sources support - ChatHistoryItem now includes sources for assistant messages, separate from MessageRead to avoid circular dependencies
 - v1.2: API Contract Freeze - Fixed status code strategy (Pydantic validators return 422), unified AI failure handling (return 502/504 not success=true), standardized field naming (mode/role/assistant), removed user_id from responses, simplified source_type, removed hardcoded contact numbers
 - v1.1: Applied design review feedback - sources deduplication, 422/400 clarification, mode/anchor only for new conversations, structured safety enums, unified 404 strategy
 - v1.0: Initial design
@@ -1155,7 +1156,7 @@ backend/app/schemas/chat.py
 ### MessageSource
 ```python
 class MessageSource(BaseModel):
-    """Source diary referenced in AI response"""
+    """Source diary for new message response (without snapshot fields)"""
     diary_id: int
     diary_date: date
     title: str
@@ -1164,6 +1165,8 @@ class MessageSource(BaseModel):
     relevance_score: float = Field(ge=0.0, le=1.0)
     source_type: Literal["anchor", "retrieved"]
 ```
+
+**Note**: Used only in `ChatResponse` for immediate response. For historical sources, use `MessageSourceRead`.
 
 ### RetrievalMetadata
 ```python
@@ -1188,7 +1191,7 @@ class SafetyCheck(BaseModel):
 ### MessageRead
 ```python
 class MessageRead(BaseModel):
-    """Message as returned to frontend"""
+    """Message as returned in single message context"""
     id: int
     conversation_id: int
     role: Literal["user", "assistant"]
@@ -1196,7 +1199,38 @@ class MessageRead(BaseModel):
     created_at: datetime
 ```
 
-**Note**: `sources` removed - single source of truth at response level.
+**Note**: Basic message representation without sources. Use `ChatHistoryItem` for message list with sources.
+
+### MessageSourceRead
+```python
+class MessageSourceRead(BaseModel):
+    """Source diary for a message (from message_sources table)"""
+    id: int
+    diary_id: int | None  # NULL if diary was deleted
+    source_type: Literal["anchor", "retrieved"]
+    # Snapshot fields - preserved even after diary deletion
+    diary_date_snapshot: date | None
+    title_snapshot: str
+    excerpt_snapshot: str
+    emotion_label_snapshot: str | None
+    relevance_score: float = Field(ge=0.0, le=1.0)
+    rank: int = Field(ge=1)
+```
+
+### ChatHistoryItem
+```python
+class ChatHistoryItem(BaseModel):
+    """Message in conversation history with optional sources"""
+    message: MessageRead
+    sources: list[MessageSourceRead]  # Empty array for user messages
+```
+
+**Design Notes**:
+- `sources` included at history item level, not in `MessageRead`
+- User messages have empty `sources` array
+- Assistant messages include all sources from `message_sources` table
+- Snapshot fields preserve source display even after original diary deletion
+- `diary_id` may be NULL after deletion, but snapshots remain intact
 
 ### ConversationRead
 ```python
@@ -1284,6 +1318,23 @@ class ConversationDetailResponse(BaseModel):
     conversation: ConversationRead
 ```
 
+### MessageListResponse
+```python
+class MessageListResponse(BaseModel):
+    """Response for GET /api/v1/chat/conversations/{id}/messages"""
+    messages: list[ChatHistoryItem]
+    page: int = Field(ge=1)
+    page_size: int = Field(ge=1, le=100)
+    total: int = Field(ge=0)
+```
+
+**Design Notes**:
+- Returns `ChatHistoryItem` array with message + sources
+- User messages have empty `sources` array
+- Assistant messages include all sources from `message_sources` table
+- Supports pagination for infinite scroll
+- `page` is 1-indexed
+
 ---
 
 # K. Frontend TypeScript Type Design Preview
@@ -1293,9 +1344,11 @@ class ConversationDetailResponse(BaseModel):
 ```
 frontend/src/types/chat.ts
 ├── MessageSource
+├── MessageSourceRead
 ├── RetrievalMetadata
 ├── SafetyCheck
 ├── ChatMessage
+├── ChatHistoryItem
 ├── ChatConversation
 ├── ChatRequest
 ├── ChatResponse
@@ -1338,6 +1391,25 @@ export interface SafetyCheck {
 }
 ```
 
+### MessageSourceRead
+```typescript
+export interface MessageSourceRead {
+  id: number;
+  diary_id: number | null;  // NULL if diary was deleted
+  source_type: 'anchor' | 'retrieved';
+  // Snapshot fields - preserved even after diary deletion
+  diary_date_snapshot: string | null;  // ISO 8601 date string or null
+  title_snapshot: string;
+  excerpt_snapshot: string;
+  emotion_label_snapshot: string | null;
+  relevance_score: number;  // 0.0 to 1.0
+  rank: number;  // >= 1
+}
+```
+
+**Note**: Used in `ChatHistoryItem` for historical messages with snapshot data preserved.
+```
+
 ### ChatMessage
 ```typescript
 export interface ChatMessage {
@@ -1349,7 +1421,22 @@ export interface ChatMessage {
 }
 ```
 
-**Note**: `sources` removed - single source of truth at response level.
+**Note**: Basic message type without sources. Use `ChatHistoryItem` for message list with sources.
+
+### ChatHistoryItem
+```typescript
+export interface ChatHistoryItem {
+  message: ChatMessage;
+  sources: MessageSourceRead[];  // Empty array for user messages
+}
+```
+
+**Design Notes**:
+- `sources` included at history item level
+- User messages have empty `sources` array
+- Assistant messages include all sources from database
+- Snapshot fields ensure sources displayable even after diary deletion
+- `diary_id` may be null after deletion, but snapshots persist
 
 ### ChatConversation
 ```typescript
@@ -1408,6 +1495,16 @@ export interface ConversationDetailResponse {
 }
 ```
 
+### MessageListResponse
+```typescript
+export interface MessageListResponse {
+  messages: ChatHistoryItem[];
+  page: number;  // >= 1
+  page_size: number;  // 1 to 100
+  total: number;  // >= 0
+}
+```
+
 ### API Response Wrapper
 ```typescript
 // Already in types/index.ts, reused for chat
@@ -1422,6 +1519,7 @@ export interface ApiResponse<T> {
 export type ChatApiResponse = ApiResponse<ChatResponse>;
 export type ConversationListApiResponse = ApiResponse<ConversationListResponse>;
 export type ConversationDetailApiResponse = ApiResponse<ConversationDetailResponse>;
+export type MessageListApiResponse = ApiResponse<MessageListResponse>;
 ```
 
 ### Frontend Usage Examples

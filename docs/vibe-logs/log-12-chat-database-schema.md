@@ -323,3 +323,148 @@ CONSTRAINT uq_message_source_message_diary UNIQUE (message_id, diary_id)
 ## Database Design Status: **COMPLETE**
 
 数据库设计已完成并验证。所有表、约束、索引和级联行为都已按设计文档实现。
+
+---
+
+## Audit and Fix Log (2026-07-08)
+
+### Issues Found and Fixed
+
+#### 1. Alembic Migration Structure
+
+**Problem**: Initial migration claimed to create all tables but only created chat tables.
+
+**Fix**:
+- Split migrations into two:
+  - `0001_baseline_core_schema.py` - users, entries, emotion_analyses, diaries
+  - `0002_add_chat_schema.py` - conversations, messages, message_sources
+
+**Verification**: Empty database upgrade creates all 7 tables successfully.
+
+#### 2. SQLite Foreign Keys Not Enabled
+
+**Problem**: `PRAGMA foreign_keys=ON` was not configured.
+
+**Fix**:
+- Added event listener in `database.py`
+- Added event listener in `alembic/env.py`
+
+```python
+@event.listens_for(Engine, "connect")
+def set_sqlite_foreign_keys(dbapi_conn, connection_record):
+    if "sqlite" in str(dbapi_conn.__class__):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
+```
+
+**Verification**: All foreign key cascade behaviors verified:
+- ✅ Deleting conversation cascades to messages
+- ✅ Deleting message cascades to message_sources
+- ✅ Deleting anchored diary (RESTRICT) is blocked
+- ✅ Deleting source diary (SET NULL) sets diary_id to NULL
+
+#### 3. Conversation Mode-Anchor Constraint
+
+**Problem**: No database constraint ensuring mode and anchor_diary_id consistency.
+
+**Fix**: Added CHECK constraint:
+```sql
+CHECK (
+    (mode = 'companion' AND anchor_diary_id IS NULL) OR
+    (mode = 'past_self' AND anchor_diary_id IS NOT NULL)
+)
+```
+
+**Verification**:
+- ✅ companion + anchor_diary_id blocked
+- ✅ past_self + null anchor blocked
+- ✅ companion + null anchor allowed
+- ✅ past_self + valid anchor allowed
+
+#### 4. Anchor Diary FK Should Be RESTRICT
+
+**Problem**: `anchor_diary_id` used `SET NULL`, but past_self conversations require valid anchor.
+
+**Fix**: Changed to `ON DELETE RESTRICT` to prevent deleting anchored diaries.
+
+**Verification**: Deleting diary used as anchor is blocked at database level.
+
+#### 5. MessageSource Snapshot Fields
+
+**Problem**: Original `excerpt` field insufficient for historical source display.
+
+**Fix**: Added snapshot fields:
+- `diary_date_snapshot` (DATE)
+- `title_snapshot` (VARCHAR(120))
+- `excerpt_snapshot` (TEXT)
+- `emotion_label_snapshot` (VARCHAR(30))
+
+**Verification**: After diary deletion, snapshot data is preserved while diary_id becomes NULL.
+
+#### 6. Missing Unique Constraint
+
+**Problem**: Only had `UNIQUE(message_id, diary_id)`, missing rank uniqueness.
+
+**Fix**: Added `UNIQUE(message_id, rank)` to ensure consistent ordering.
+
+**Verification**:
+- ✅ Duplicate (message_id, diary_id) blocked
+- ✅ Duplicate (message_id, rank) blocked
+
+### Migration Chain After Fix
+
+```
+0001_baseline_core_schema.py (revision: 0001)
+    └─ Creates: users, entries, emotion_analyses, diaries
+    └─ No dependencies (down_revision = None)
+
+0002_add_chat_schema.py (revision: 0002, down_revision: 0001)
+    └─ Creates: conversations, messages, message_sources
+    └─ Depends on: 0001
+```
+
+### Test Results
+
+#### Empty Database Migration
+- ✅ `alembic upgrade head` creates all 7 tables
+- ✅ `alembic downgrade base` drops all tables
+- ✅ Re-upgrade recreates all tables correctly
+
+#### Foreign Key Behaviors (on temp DB)
+- ✅ Companion + anchor_diary_id → CHECK constraint failed
+- ✅ Past_self + null anchor → CHECK constraint failed
+- ✅ relevance_score > 1.0 → CHECK constraint failed
+- ✅ rank < 1 → CHECK constraint failed
+- ✅ Duplicate (message_id, rank) → UNIQUE constraint failed
+- ✅ Delete conversation → messages cascade deleted
+- ✅ Delete anchored diary → RESTRICT blocks deletion
+- ✅ Delete source diary → message_sources.diary_id becomes NULL
+- ✅ Snapshot data preserved after diary deletion
+
+#### Pytest Results
+- ✅ 91 tests passed, 0 failed
+- ✅ No regressions introduced
+
+#### Model Imports
+- ✅ All models importable from `app.models`
+- ✅ SQLAlchemy relationships work correctly
+- ✅ Base.metadata contains 7 tables
+
+### Confirmed Design Decisions
+
+#### No Reports Model
+- Confirmed: No `reports` table exists in codebase
+- Not created in migrations
+- Documentation updated to reflect this
+
+#### Snapshot Semantics
+- When diary is used as source, relevant fields are snapshotted
+- Historical sources remain displayable even after diary deletion
+- Service layer must populate snapshot fields on source creation
+- `diary_id` may become NULL after deletion, snapshots remain intact
+
+#### Conversation Immutability
+- Existing conversation's `mode` and `anchor_diary_id` should not be modified
+- This constraint is enforced at service layer (not database)
+- Database only ensures initial consistency via CHECK constraint

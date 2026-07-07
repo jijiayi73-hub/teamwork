@@ -2,10 +2,20 @@ import os
 import sys
 from logging.config import fileConfig
 
-from sqlalchemy import engine_from_config
+from sqlalchemy import engine_from_config, event
 from sqlalchemy import pool
+from sqlalchemy.engine import Engine
 
 from alembic import context
+
+
+# Enable SQLite foreign keys for Alembic migrations
+@event.listens_for(Engine, "connect")
+def set_sqlite_foreign_keys(dbapi_conn, connection_record):
+    if "sqlite" in str(dbapi_conn.__class__):
+        cursor = dbapi_conn.cursor()
+        cursor.execute("PRAGMA foreign_keys=ON")
+        cursor.close()
 
 # Add the parent directory to the path so we can import app modules
 sys.path.insert(0, os.path.dirname(os.path.dirname(__file__)))
