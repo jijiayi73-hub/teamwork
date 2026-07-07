@@ -13,6 +13,7 @@
 | [Log 05](./log-05-special-technology.md) | 特殊技术 | - | - |
 | [Log 06](./log-06-minimal-backend-loop.md) | 最小后端闭环 | 2026-07-07 | ✓ |
 | [Log 07](./log-07-api-complete.md) | API 接口完成记录 | 2026-07-07 | ✓ |
+| [Log 13](./log-13-migration-hardening.md) | 迁移加固与数据库约束 | 2026-07-08 | ✓ |
 
 ## 最新日志说明
 
