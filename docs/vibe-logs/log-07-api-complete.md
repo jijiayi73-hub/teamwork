@@ -449,7 +449,7 @@
 | 字段命名 | snake_case | ✓ | 所有 JSON 字段使用 snake_case |
 | 时间格式 | ISO 8601 | ✓ | 所有时间字段使用 ISO 8601 格式 |
 | 认证方式 | JWT Bearer Token | ✓ | 使用 JWT 并通过 `Authorization: Bearer` 传递 |
-| 响应格式 | 统一 ApiResponse | ✓ | 使用 `ApiResponse` 包装响应数据 |
+| 响应格式 | 统一 ApiResponse | ✓ | 除健康检查外，其余接口使用 `ApiResponse` 包装响应数据 |
 | 角色区分 | user/admin | ✓ | 通过 `get_current_user` 和 `require_admin` 实现 |
 | 数据库 | SQLAlchemy + SQLite | ✓ | 通过 SQLAlchemy 访问 SQLite |
 | AI 调用 | Provider 抽象层 | ⚠️ | 当前使用本地规则式分析，需迁移到 Provider 层 |
