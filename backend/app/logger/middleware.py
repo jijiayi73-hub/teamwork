@@ -2,15 +2,46 @@
 Request logging middleware for InnerGarden API.
 
 Logs HTTP requests with timing, status codes, and request IDs.
+Sensitive data is sanitized before logging.
 """
 
 import time
 from typing import Callable
+from urllib.parse import parse_qs
 
 from fastapi import Request, Response
 from starlette.middleware.base import BaseHTTPMiddleware
 
 from .context import clear_request_context, generate_request_id, set_request_context
+
+
+# Sensitive keys that should never be logged
+SENSITIVE_KEYS = {
+    "password", "token", "secret", "key", "authorization",
+    "access_token", "refresh_token", "api_key", "auth_token",
+}
+
+
+def sanitize_dict(data: dict, sensitive_keys: set[str] = None) -> dict:
+    """Recursively sanitize sensitive data in dictionaries."""
+    if sensitive_keys is None:
+        sensitive_keys = SENSITIVE_KEYS
+
+    sanitized = {}
+    for key, value in data.items():
+        key_lower = key.lower()
+        if any(sensitive in key_lower for sensitive in sensitive_keys):
+            sanitized[key] = "***REDACTED***"
+        elif isinstance(value, dict):
+            sanitized[key] = sanitize_dict(value, sensitive_keys)
+        elif isinstance(value, list):
+            sanitized[key] = [
+                sanitize_dict(item, sensitive_keys) if isinstance(item, dict) else item
+                for item in value
+            ]
+        else:
+            sanitized[key] = value
+    return sanitized
 
 
 class RequestLoggingMiddleware(BaseHTTPMiddleware):
@@ -59,15 +90,18 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         success: bool,
         error: str = None
     ) -> None:
-        """Log request information."""
+        """Log request information with sensitive data sanitized."""
         from .config import get_logger
 
         logger = get_logger("http.request")
 
+        # Sanitize query params to remove sensitive data
+        query_params = sanitize_dict(dict(request.query_params))
+
         log_data = {
             "method": request.method,
             "path": request.url.path,
-            "query_params": dict(request.query_params),
+            "query_params": query_params,
             "client_ip": self._get_client_ip(request),
             "duration_ms": round(duration_ms, 2),
         }

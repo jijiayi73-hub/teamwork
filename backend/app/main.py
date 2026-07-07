@@ -5,6 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from .logger.config import configure_logging
 from .logger.middleware import RequestLoggingMiddleware
 from .logger.exception_handler import add_exception_handlers
+from .config import settings
 
 configure_logging()
 
@@ -19,9 +20,9 @@ app = FastAPI(title="InnerGarden API")
 # Add CORS middleware first
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://localhost:5174", "http://localhost:5175", "http://localhost:3000"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
     allow_headers=["*"],
 )
 
@@ -42,9 +43,11 @@ app.include_router(logs.router, prefix="/api/v1")
 
 @app.get("/health")
 def health_check():
-    return {"status": "ok"}
+    from .schemas.common import ApiResponse
+    return ApiResponse(data={"status": "healthy"})
 
 
 @app.get("/api/v1/health")
 def api_health_check():
-    return {"status": "ok"}
+    from .schemas.common import ApiResponse
+    return ApiResponse(data={"status": "healthy", "api_version": "v1"})
