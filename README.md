@@ -54,6 +54,65 @@ teamwork/
 └── .github/       # Issue、PR 和 CI 配置
 ```
 
+## 🚀 快速开始
+
+### 一键启动（推荐）
+
+```batch
+# Windows
+scripts\start.bat
+
+# Linux / macOS
+./scripts/start.sh
+```
+
+**脚本特性：**
+- 🔍 自动检测环境
+- 📦 首次运行自动安装依赖
+- ⚙️ 自动创建 `.env` 配置
+- 🚀 并行启动前后端服务
+
+### 停止服务
+
+```powershell
+# Windows PowerShell
+powershell -ExecutionPolicy Bypass -File scripts\stop.ps1
+
+# Linux / macOS
+./scripts/stop.sh
+```
+
+或直接关闭服务窗口。
+
+### 访问地址
+
+启动后访问：
+
+- 📡 **后端 API**: http://localhost:8000
+- 📄 **API 文档**: http://localhost:8000/docs
+- 🌐 **前端界面**: http://localhost:5173
+
+### 手动启动（高级用户）
+
+如果需要单独启动某个服务：
+
+```bash
+# 后端
+cd backend
+python -m venv venv
+source venv/bin/activate  # Windows: venv\Scripts\activate
+pip install -r requirements.txt
+cp .env.example .env      # 配置你的 API 密钥
+uvicorn app.main:app --reload
+
+# 前端（新终端）
+cd frontend
+npm install
+npm run dev
+```
+
+---
+
 ## CampusProject 提交流程
 
 本仓库使用 `main` 作为稳定主分支。产品、前端、后端的工作都应先在各自任务分支完成，再通过提交记录或 Pull Request 合并到 `main`。不要直接把多个无关改动混在一次提交里。

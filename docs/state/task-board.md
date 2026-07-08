@@ -1,5 +1,69 @@
 # Inner Garden Task Board
 
+## 2026-07-08 最新任务更新：TASK-002 移除 Demo 自动登录，实现认证业务层
+
+### TASK-002: 认证业务层与登录界面
+| 字段 | 值 |
+|---|---|
+| **Owner** | jiayiji |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-08 |
+| **Completed** | 2026-07-08 |
+
+#### 变更内容
+
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 认证业务层 | 新建 | `frontend/src/api/auth.js` |
+| 登录页面组件 | 新建 | `frontend/src/components/LoginPage.jsx` |
+| API 客户端 | 更新 | 移除 `ensureDemoSession()` 和 `DEMO_USER` |
+| App.jsx | 更新 | 集成认证流程，添加登录路由，受保护路由检查 |
+| TopNav | 更新 | 显示用户信息和登出按钮 |
+
+#### 新增功能
+
+- **认证业务函数** (`frontend/src/api/auth.js`):
+  - `login(email, password)` - 用户登录
+  - `register(username, email, password)` - 用户注册
+  - `logout()` - 用户登出
+  - `getCurrentUser()` - 获取当前用户
+  - `isAuthenticated()` - 检查认证状态
+  - `requireAuth()` - 路由守卫，未认证跳转登录页
+  - `saveRedirectPath()` / `consumeRedirectPath()` - 登录后跳转
+
+- **登录页面** (`frontend/src/components/LoginPage.jsx`):
+  - 最小可用的登录/注册界面
+  - 表单验证和错误提示
+  - 登录/注册切换
+  - 设计为后期可替换
+
+- **路由保护**:
+  - `/login` - 登录页面（公开）
+  - `/ai-companion-chat` - 需要登录
+  - `/memory-garden` - 需要登录
+  - `/diary-result` - 需要登录
+  - `/memory-garden/:id` - 需要登录
+
+#### 后续扩展建议
+
+1. **表单增强**:
+   - 密码强度提示
+   - 邮箱格式验证
+   - 记住我功能
+
+2. **UI 美化**:
+   - 更精美的登录页设计
+   - 添加品牌元素
+   - 动画效果
+
+3. **功能扩展**:
+   - 忘记密码
+   - 社交登录
+   - 邮箱验证
+
+---
+
 ## 2026-07-08 最新任务更新：TASK-001 Chat 测试收口
 
 | 字段 | 值 |

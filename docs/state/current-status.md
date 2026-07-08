@@ -51,11 +51,23 @@ py -m pytest tests/test_chat_api.py tests/test_chat_service.py tests/test_retrie
 
 Inner Garden is a digital diary and emotional wellness application with AI companion features.
 
+## 2026-07-08 更新：认证业务层完成
+
+| 检查项 | 当前结论 | 证据 |
+|---|---|---|
+| Demo 自动登录已移除 | 已移除 | `frontend/src/api/client.js` 不再包含 `ensureDemoSession()` |
+| 认证业务层已实现 | 已实现 | `frontend/src/api/auth.js` 包含完整认证函数 |
+| 登录页面组件已创建 | 已创建 | `frontend/src/components/LoginPage.jsx` |
+| 路由保护已实现 | 已实现 | 受保护路由需要登录，未认证跳转登录页 |
+| TopNav 显示用户信息 | 已实现 | 登录后显示邮箱和登出按钮 |
+| 前端构建通过 | 已验证 | `npm run build` 成功完成 |
+
 ## Completed Features
 
 | Feature | Status | Notes |
 |---------|--------|-------|
-| User Authentication | ✅ Complete | JWT-based, registration/login |
+| User Authentication (Frontend) | ✅ Complete | Auth business layer + Login UI component |
+| User Authentication (Backend) | ✅ Complete | JWT-based, registration/login |
 | Diary Entries | ✅ Complete | CRUD operations with soft delete |
 | Emotion Analysis | ✅ Complete | Multi-label emotion detection |
 | Chat Database Schema | ✅ Complete | conversations, messages, message_sources tables |
