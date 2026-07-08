@@ -8,16 +8,18 @@ import {
   healthCheck,
   listDiaries,
 } from './api/client';
+import LiquidMemoryBackground from './components/LiquidMemoryBackground';
 
 const DRAFT_KEY = 'mindful_memory_diary_draft';
 const LOCAL_MEMORIES_KEY = 'mindful_memory_diary_memories';
 
 export default function App() {
   const route = useHashRoute();
+  const isMemoryRoute = route.name === 'garden' || route.name === 'detail';
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#10131e] font-body text-white">
-      <DreamBackdrop />
+      {isMemoryRoute ? <LiquidMemoryBackground /> : <DreamBackdrop />}
       <TopNav />
       {route.name === 'chat' && <ChatPage />}
       {route.name === 'diary' && <DiaryResultPage />}
@@ -417,44 +419,89 @@ function MemoryGardenPage() {
   }, []);
 
   return (
-    <PageShell
-      eyebrow="Memory Garden"
-      title="你的记忆花园"
-      subtitle="当前使用真实 /api/v1/diaries 作为列表数据源；产品文档里的 /memories 接口尚未实现。"
-    >
-      <div className="mb-5 flex flex-wrap gap-3">
-        <a className="primary-action" href="#/ai-companion-chat">
-          写下今天
-        </a>
-        <button className="secondary-action" onClick={loadGarden} type="button">
-          刷新花园
-        </button>
-      </div>
+    <section className="memory-garden-page">
+      <div className="memory-garden-shell">
+        <header className="memory-garden-hero">
+          <p className="memory-garden-eyebrow">Memory Garden</p>
+          <h1 className="memory-garden-title">你的记忆花园</h1>
 
-      <div className="mb-6 grid gap-4 sm:grid-cols-3">
-        <Metric label="Total diaries" value={stats?.total_diaries ?? diaries.length} />
-        <Metric label="Favorites" value={stats?.favorite_diaries ?? 0} />
-        <Metric label="Average score" value={stats?.average_emotion_score ?? '-'} />
-      </div>
-
-      {diaries.length === 0 ? (
-        <EmptyState actionHref="#/ai-companion-chat" actionText="开始记录今天" text="后端里还没有保存的日记。" />
-      ) : (
-        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-          {diaries.map((diary) => (
-            <a className="memory-card" href={`#/memory-garden/${diary.id}`} key={diary.id}>
-              <p className="text-sm text-white/52">{diary.diary_date}</p>
-              <h3 className="mt-3 font-display text-2xl text-white">{diary.title}</h3>
-              <p className="memory-card-excerpt mt-4 text-sm leading-7 text-white/64">{diary.content}</p>
-              <span className="mt-5 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs text-white/72">
-                {diary.analysis?.primary_emotion || 'memory'}
-              </span>
+          <div className="memory-garden-actions" aria-label="Memory Garden actions">
+            <a
+              aria-label="写下今天"
+              className="memory-garden-icon-action"
+              href="#/ai-companion-chat"
+              title="写下今天"
+            >
+              <WriteIcon />
             </a>
-          ))}
-        </div>
-      )}
-      <StatusText>{status}</StatusText>
-    </PageShell>
+            <button
+              aria-label="刷新花园"
+              className="memory-garden-icon-action"
+              onClick={loadGarden}
+              title="刷新花园"
+              type="button"
+            >
+              <RefreshIcon />
+            </button>
+          </div>
+
+          <p className="memory-garden-total">
+            <span>Total Diaries</span>
+            <span aria-hidden="true">·</span>
+            <strong>{stats?.total_diaries ?? diaries.length}</strong>
+          </p>
+        </header>
+
+        <section className="memory-garden-list" aria-label="Memory Garden diary list">
+          {diaries.length === 0 ? (
+            <div className="memory-garden-empty">
+              <p>后端里还没有保存的日记。</p>
+              <a className="memory-garden-empty-action" href="#/ai-companion-chat">
+                开始记录今天
+              </a>
+            </div>
+          ) : (
+            <div className="memory-garden-card-grid">
+              {diaries.map((diary) => (
+                <a className="memory-card" href={`#/memory-garden/${diary.id}`} key={diary.id}>
+                  <p className="text-sm text-white/52">{diary.diary_date}</p>
+                  <h3 className="mt-3 font-display text-2xl text-white">{diary.title}</h3>
+                  <p className="memory-card-excerpt mt-4 text-sm leading-7 text-white/64">
+                    {diary.content}
+                  </p>
+                  <span className="mt-5 inline-flex rounded-full bg-white/10 px-3 py-1 text-xs text-white/72">
+                    {diary.analysis?.primary_emotion || 'memory'}
+                  </span>
+                </a>
+              ))}
+            </div>
+          )}
+        </section>
+
+        <p className="memory-garden-status">{status}</p>
+      </div>
+    </section>
+  );
+}
+
+function WriteIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+      <path d="M4.75 19.25l4.1-1.05 9.75-9.75a2.12 2.12 0 0 0-3-3L5.85 15.2l-1.1 4.05Z" />
+      <path d="m14.25 6.75 3 3" />
+      <path d="M8.5 19.25h10.75" />
+    </svg>
+  );
+}
+
+function RefreshIcon() {
+  return (
+    <svg aria-hidden="true" fill="none" viewBox="0 0 24 24">
+      <path d="M18.75 8.25A7.25 7.25 0 0 0 6.2 6.1L4.75 7.75" />
+      <path d="M4.75 4.25v3.5h3.5" />
+      <path d="M5.25 15.75a7.25 7.25 0 0 0 12.55 2.15l1.45-1.65" />
+      <path d="M19.25 19.75v-3.5h-3.5" />
+    </svg>
   );
 }
 

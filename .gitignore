@@ -27,3 +27,7 @@ coverage/
 .idea/
 .vscode/
 
+# temporary files
+_tmp_*
+**/_tmp_*
+
