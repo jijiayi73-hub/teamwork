@@ -395,8 +395,24 @@ function DiaryResultPage() {
     setStatus('正在通过 POST /api/v1/diaries 保存日记...');
 
     try {
+      let entryId = Number(draft.entry_id);
+      if (!Number.isInteger(entryId) || entryId <= 0) {
+        const entryResponse = await createEntry(draft.raw_content || content);
+        entryId = entryResponse.data.id;
+        window.localStorage.setItem(
+          DRAFT_KEY,
+          JSON.stringify({
+            ...draft,
+            entry_id: entryId,
+            title,
+            content,
+            analysis: entryResponse.data.analysis || draft.analysis,
+          }),
+        );
+      }
+
       const response = await createDiary({
-        entry_id: draft.entry_id,
+        entry_id: entryId,
         title,
         content,
         diary_date: new Date().toISOString().slice(0, 10),
@@ -406,10 +422,11 @@ function DiaryResultPage() {
       setStatus('保存成功，已写入真实后端 /api/v1/diaries。');
       window.location.hash = '#/memory-garden';
     } catch (error) {
-      // 改进错误消息显示
       const errorDetail = error.message || (typeof error === 'string' ? error : JSON.stringify(error));
-      setStatus(`保存失败：${errorDetail}`);
       console.error('保存日记失败:', error);
+      const fallbackDiary = rememberLocalDiary(buildSavedLocalDiary(draft, title, content));
+      setStatus(`已保存到本地 Memory Garden，后端暂时不可用：${errorDetail}`);
+      window.location.hash = `#/memory-garden/${fallbackDiary.id}`;
     } finally {
       setIsSaving(false);
     }
@@ -489,11 +506,15 @@ function MemoryGardenPage() {
     setStatus('正在读取 /api/v1/diaries 和 /api/v1/stats/overview...');
     try {
       const [diaryResponse, statsResponse] = await Promise.all([listDiaries(), getStatsOverview()]);
-      setDiaries(diaryResponse.data || []);
-      setStats(statsResponse.data || null);
+      const mergedDiaries = mergeLocalDiaries(diaryResponse.data || []);
+      setDiaries(mergedDiaries);
+      setStats({ ...(statsResponse.data || {}), total_diaries: mergedDiaries.length });
       setStatus('Memory Garden 已接入真实 diary 列表接口。');
     } catch (error) {
-      setStatus(`读取失败：${error.message}`);
+      const localDiaries = readLocalDiaries();
+      setDiaries(localDiaries);
+      setStats({ total_diaries: localDiaries.length });
+      setStatus(`Memory Garden 已显示本地保存的日记，后端读取失败：${error.message}`);
     }
   }
 
@@ -600,7 +621,13 @@ function MemoryDetailPage({ diaryId }) {
         setDiary(response.data);
         setStatus('详情已接入真实后端 /api/v1/diaries/{id}。');
       } catch (error) {
-        setStatus(`读取失败：${error.message}`);
+        const localDiary = findLocalDiary(diaryId);
+        if (localDiary) {
+          setDiary(localDiary);
+          setStatus(`详情已显示本地保存的日记，后端读取失败：${error.message}`);
+        } else {
+          setStatus(`读取失败：${error.message}`);
+        }
       }
     }
     loadDiary();
@@ -725,9 +752,80 @@ function getLocalMemoryCount() {
 
 function rememberLocalDiary(diary) {
   const memories = readJson(LOCAL_MEMORIES_KEY);
-  const nextMemories = Array.isArray(memories) ? memories : [];
-  nextMemories.unshift({ id: diary.id, title: diary.title, diary_date: diary.diary_date });
+  const currentMemories = normalizeLocalDiaries(Array.isArray(memories) ? memories : []);
+  const diaryKey = getDiaryDedupeKey(diary);
+  const nextMemories = normalizeLocalDiaries([
+    diary,
+    ...currentMemories.filter((memory) => getDiaryDedupeKey(memory) !== diaryKey),
+  ]);
   window.localStorage.setItem(LOCAL_MEMORIES_KEY, JSON.stringify(nextMemories));
+  return diary;
+}
+
+function buildSavedLocalDiary(draft, title, content) {
+  const now = new Date().toISOString();
+  const stableId = getLocalDiaryId(draft, title, content);
+  return {
+    id: stableId,
+    entry_id: draft?.entry_id || `local-entry-${Date.now()}`,
+    analysis_id: draft?.analysis?.id || `local-analysis-${Date.now()}`,
+    title,
+    content,
+    diary_date: now.slice(0, 10),
+    is_favorite: false,
+    visibility: 'private',
+    created_at: now,
+    updated_at: now,
+    analysis: draft?.analysis || {
+      primary_emotion: 'memory',
+      suggestion: '',
+      summary: '',
+    },
+  };
+}
+
+function readLocalDiaries() {
+  const memories = readJson(LOCAL_MEMORIES_KEY);
+  const normalizedMemories = normalizeLocalDiaries(Array.isArray(memories) ? memories : []);
+  if (Array.isArray(memories) && normalizedMemories.length !== memories.length) {
+    window.localStorage.setItem(LOCAL_MEMORIES_KEY, JSON.stringify(normalizedMemories));
+  }
+  return normalizedMemories;
+}
+
+function mergeLocalDiaries(diaries) {
+  const remoteIds = new Set(diaries.map((diary) => String(diary.id)));
+  const localOnly = readLocalDiaries().filter((diary) => !remoteIds.has(String(diary.id)));
+  return [...localOnly, ...diaries];
+}
+
+function findLocalDiary(diaryId) {
+  return readLocalDiaries().find((diary) => String(diary.id) === String(diaryId)) || null;
+}
+
+function getLocalDiaryId(draft, title, content) {
+  if (draft?.saved_diary_id) return draft.saved_diary_id;
+  if (draft?.entry_id) return `local-${draft.entry_id}`;
+  return `local-${stableMemoryKey(title, new Date().toISOString().slice(0, 10), content)}`;
+}
+
+function getDiaryDedupeKey(diary) {
+  if (diary?.entry_id) return `entry:${diary.entry_id}`;
+  return `content:${stableMemoryKey(diary?.title, diary?.diary_date, diary?.content)}`;
+}
+
+function stableMemoryKey(title, diaryDate, content) {
+  return [title || '', diaryDate || '', content || ''].join('|').trim();
+}
+
+function normalizeLocalDiaries(diaries) {
+  const seen = new Set();
+  return diaries.filter((diary) => {
+    const key = getDiaryDedupeKey(diary);
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
 }
 
 function readJson(key) {
