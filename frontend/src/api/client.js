@@ -120,3 +120,68 @@ export async function getStatsOverview() {
   await ensureDemoSession();
   return apiRequest('/stats/overview');
 }
+
+// Chat API functions (for future backend integration)
+// These will work once the backend chat API is implemented
+
+/**
+ * Create a new conversation
+ * POST /api/v1/chat/conversations
+ */
+export async function createConversation({ mode, title, anchor_diary_id }) {
+  await ensureDemoSession();
+  return apiRequest('/chat/conversations', {
+    method: 'POST',
+    body: JSON.stringify({ mode, title, anchor_diary_id }),
+  });
+}
+
+/**
+ * List all conversations for current user
+ * GET /api/v1/chat/conversations
+ */
+export async function listConversations() {
+  await ensureDemoSession();
+  return apiRequest('/chat/conversations');
+}
+
+/**
+ * Get a specific conversation by ID
+ * GET /api/v1/chat/conversations/{id}
+ */
+export async function getConversation(conversationId) {
+  await ensureDemoSession();
+  return apiRequest(`/chat/conversations/${conversationId}`);
+}
+
+/**
+ * List messages in a conversation
+ * GET /api/v1/chat/conversations/{id}/messages
+ */
+export async function listMessages(conversationId) {
+  await ensureDemoSession();
+  return apiRequest(`/chat/conversations/${conversationId}/messages`);
+}
+
+/**
+ * Send a message in a conversation
+ * POST /api/v1/chat/messages
+ */
+export async function sendMessage({ conversation_id, content }) {
+  await ensureDemoSession();
+  return apiRequest('/chat/messages', {
+    method: 'POST',
+    body: JSON.stringify({ conversation_id, content }),
+  });
+}
+
+/**
+ * Delete a conversation
+ * DELETE /api/v1/chat/conversations/{id}
+ */
+export async function deleteConversation(conversationId) {
+  await ensureDemoSession();
+  return apiRequest(`/chat/conversations/${conversationId}`, {
+    method: 'DELETE',
+  });
+}
