@@ -8,7 +8,7 @@ Implements all 6 endpoints defined in the API contract:
 - GET /api/v1/chat/conversations/{id}/messages
 - DELETE /api/v1/chat/conversations/{id}
 
-API Contract: docs/vibe-logs/log-07-rag-chat-api-design.md
+API Contract: docs/contracts/chat-api-v1.md
 """
 from __future__ import annotations
 

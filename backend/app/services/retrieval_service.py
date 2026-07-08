@@ -163,6 +163,9 @@ class KeywordEmotionTimeStrategy(RetrievalStrategy):
         if not query_emotions:
             return 0.5  # Neutral score if no emotion keywords
 
+        if not diary.analysis:
+            return 0.3  # No analysis data
+
         primary_emotion = diary.analysis.primary_emotion.lower()
         if primary_emotion in query_emotions:
             return 1.0

@@ -1,0 +1,43 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(py -c \"import sqlite3; conn = sqlite3.connect\\('data/app.db'\\); cursor = conn.cursor\\(\\); cursor.execute\\('SELECT name FROM sqlite_master WHERE type=\\\\\"table\\\\\"'\\); print\\('backend/data/app.db tables:', [r[0] for r in cursor.fetchall\\(\\)]\\); cursor.execute\\('SELECT version_num FROM alembic_version'\\); print\\('alembic version:', cursor.fetchone\\(\\)\\); conn.close\\(\\)\")",
+      "Bash(py -c \"import sqlite3; conn = sqlite3.connect\\('data/app.db'\\); cursor = conn.cursor\\(\\); cursor.execute\\('SELECT name FROM sqlite_master WHERE type=\\\\\"table\\\\\"'\\); print\\('data/app.db tables:', [r[0] for r in cursor.fetchall\\(\\)]\\); cursor.execute\\('SELECT version_num FROM alembic_version'\\); print\\('alembic version:', cursor.fetchone\\(\\)\\); conn.close\\(\\)\")",
+      "Bash(py -c \"import sqlite3; conn = sqlite3.connect\\('data/app.db'\\); cursor = conn.cursor\\(\\); cursor.execute\\('SELECT COUNT\\(*\\) FROM users'\\); print\\('Users:', cursor.fetchone\\(\\)[0]\\); cursor.execute\\('SELECT COUNT\\(*\\) FROM entries'\\); print\\('Entries:', cursor.fetchone\\(\\)[0]\\); cursor.execute\\('SELECT COUNT\\(*\\) FROM diaries'\\); print\\('Diaries:', cursor.fetchone\\(\\)[0]\\); cursor.execute\\('SELECT COUNT\\(*\\) FROM conversations'\\); print\\('Conversations:', cursor.fetchone\\(\\)[0]\\); cursor.execute\\('SELECT COUNT\\(*\\) FROM messages'\\); print\\('Messages:', cursor.fetchone\\(\\)[0]\\); conn.close\\(\\)\")",
+      "Bash(DATABASE_URL=\"sqlite:///./data/app.db\" py -m alembic upgrade head)",
+      "Bash(py -c \"import os; os.remove\\('data/app.db'\\); print\\('Deleted successfully'\\)\")",
+      "Bash(py -m pytest tests/test_chat_database.py -q)",
+      "Bash(py -m pytest tests/test_chat_database.py -q --tb=short)",
+      "Bash(py -c ' *)",
+      "Bash(py -m pytest tests/test_chat_database.py::TestMigrationCycle::test_migration_upgrade_downgrade_cycle -q)",
+      "Bash(git push *)",
+      "Bash(awk '{print $9, $5}')",
+      "Bash(dir /b scripts\\\\*.bat scripts\\\\*.sh scripts\\\\*.ps1)",
+      "Bash(netstat -ano)",
+      "Bash(findstr \":8000.*LISTENING\" :5173.*LISTENING\" 2>nul || echo \"端口检查完成\")",
+      "Bash(findstr \":8000.*LISTENING\")",
+      "Bash(findstr \":5173.*LISTENING\")",
+      "Bash(cmd //c scripts\\\\\\\\start.bat)",
+      "Bash(cmd //c start.bat)",
+      "Bash(powershell -Command \"& { Start-Process -FilePath 'cmd' -ArgumentList '/c scripts\\\\start.bat', '&', 'pause' -Wait }\")",
+      "Bash(npm --version)",
+      "Bash(py --version)",
+      "Bash(cmd //c \"venv\\\\Scripts\\\\activate.bat && py -m uvicorn app.main:app --host 0.0.0.0 --port 8000\")",
+      "Bash(taskkill /F /PID 21580 /PID 43876)",
+      "Bash(taskkill //F //PID 21580)",
+      "Bash(taskkill //F //PID 43876)",
+      "Bash(git ls-tree *)",
+      "Bash(git fetch *)",
+      "Bash(git merge *)",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/auth/login -H \"Content-Type: application/json\" -d '{\"email\":\"demo@innergarden.local\",\"password\":\"innergarden-demo\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/auth/register -H \"Content-Type: application/json\" -d '{\"username\":\"demo\",\"email\":\"demo@example.com\",\"password\":\"demo123456\",\"role\":\"user\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/entries -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ\" -d '{\"raw_content\":\"今天情绪平静，这是一段本地 mock 的温柔整理。\",\"input_type\":\"text\",\"source_language\":\"zh-CN\"}')",
+      "Bash(curl -s -X POST http://localhost:8000/api/v1/entries -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ\" -d '{\"raw_content\":\"测试\",\"input_type\":\"text\"}')",
+      "Bash(py -m uvicorn app.main:app --host 0.0.0.0 --port 8001 --timeout-keep-alive 10)",
+      "Bash(curl -s -X POST http://localhost:8001/api/v1/entries -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ' -d '{\"raw_content\":\"今天情绪平静，这是一段本地 mock 的温柔整理。\",\"input_type\":\"text\",\"source_language\":\"zh-CN\"}')",
+      "Bash(curl -s -X POST http://localhost:8001/api/v1/entries -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ' --data-raw '{\"raw_content\":\"test\"}')",
+      "Bash(curl -s -X POST http://localhost:8001/api/v1/entries -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ' --data-raw '{\"raw_content\":\"今天情绪平静，这是一段本地 mock 的温柔整理，用来保证前端演示流程可以继续。\"}')",
+      "Bash(curl -s -X POST http://localhost:8001/api/v1/entries -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ\" -d @test_entry.json)"
+    ]
+  }
+}

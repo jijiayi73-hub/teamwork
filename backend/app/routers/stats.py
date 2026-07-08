@@ -20,7 +20,7 @@ def user_diaries(db: Session, user_id: int) -> list[Diary]:
 @router.get("/overview", response_model=ApiResponse[dict])
 def overview(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     diaries = user_diaries(db, user.id)
-    scores = [diary.analysis.emotion_score for diary in diaries]
+    scores = [diary.analysis.emotion_score for diary in diaries if diary.analysis]
     return ApiResponse(
         data={
             "total_diaries": len(diaries),
@@ -37,8 +37,8 @@ def emotion_trend(user: User = Depends(get_current_user), db: Session = Depends(
         data=[
             {
                 "date": diary.diary_date.isoformat(),
-                "emotion_score": diary.analysis.emotion_score,
-                "primary_emotion": diary.analysis.primary_emotion,
+                "emotion_score": diary.analysis.emotion_score if diary.analysis else 0,
+                "primary_emotion": diary.analysis.primary_emotion if diary.analysis else "未知",
             }
             for diary in diaries
         ]
@@ -47,5 +47,9 @@ def emotion_trend(user: User = Depends(get_current_user), db: Session = Depends(
 
 @router.get("/emotion-distribution", response_model=ApiResponse[list[dict]])
 def emotion_distribution(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    counts = Counter(diary.analysis.primary_emotion for diary in user_diaries(db, user.id))
+    counts = Counter(
+        diary.analysis.primary_emotion
+        for diary in user_diaries(db, user.id)
+        if diary.analysis
+    )
     return ApiResponse(data=[{"primary_emotion": emotion, "count": count} for emotion, count in counts.items()])

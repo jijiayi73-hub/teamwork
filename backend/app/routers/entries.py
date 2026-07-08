@@ -10,9 +10,50 @@ from ..database import get_db
 from ..models import EmotionAnalysis, Entry, User
 from ..schemas.common import ApiResponse
 from ..schemas.entries import AnalysisRead, EntryCreate, EntryRead
-from ..services.analysis_service import analyze_text
+from ..services.analysis_service import analyze_text, analyze_text_with_llm
 
 router = APIRouter(prefix="/entries", tags=["entries"])
+
+
+def _get_conversation_messages(db: Session, conversation_id: int, user_id: int) -> list[dict] | None:
+    """获取对话的消息用于情绪分析上下文。
+
+    Args:
+        db: 数据库会话
+        conversation_id: 对话 ID
+        user_id: 用户 ID
+
+    Returns:
+        消息列表 [{role, content}, ...] 或 None（如果对话不存在或不属于该用户）
+    """
+    try:
+        from ..models.chat import Conversation, Message
+
+        conversation = (
+            db.query(Conversation)
+            .filter(
+                Conversation.id == conversation_id,
+                Conversation.user_id == user_id,
+                Conversation.deleted_at.is_(None),
+            )
+            .first()
+        )
+
+        if not conversation:
+            return None
+
+        messages = (
+            db.query(Message)
+            .filter(Message.conversation_id == conversation_id)
+            .order_by(Message.created_at.asc())
+            .all()
+        )
+
+        return [{"role": msg.role, "content": msg.content} for msg in messages if msg.role in ("user", "assistant")]
+
+    except Exception:
+        # 如果出现任何错误，返回 None（不影响主流程）
+        return None
 
 
 def to_analysis_read(analysis: EmotionAnalysis) -> AnalysisRead:
@@ -35,6 +76,7 @@ def to_analysis_read(analysis: EmotionAnalysis) -> AnalysisRead:
 def create_entry(payload: EntryCreate, user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     if payload.input_type != "text":
         raise HTTPException(status_code=400, detail="Minimal backend loop supports text entries first")
+
     entry = Entry(
         user_id=user.id,
         input_type=payload.input_type,
@@ -44,7 +86,19 @@ def create_entry(payload: EntryCreate, user: User = Depends(get_current_user), d
     )
     db.add(entry)
     db.flush()
-    result = analyze_text(payload.raw_content)
+
+    # 获取对话上下文（如果有）
+    conversation_messages = None
+    if payload.conversation_id:
+        conversation_messages = _get_conversation_messages(db, payload.conversation_id, user.id)
+
+    # 使用 LLM 进行情绪分析（支持对话上下文）
+    result = analyze_text_with_llm(
+        raw_content=payload.raw_content,
+        conversation_messages=conversation_messages,
+        db=db,
+    )
+
     analysis = EmotionAnalysis(
         entry_id=entry.id,
         primary_emotion=result["primary_emotion"],
@@ -72,8 +126,8 @@ def create_entry(payload: EntryCreate, user: User = Depends(get_current_user), d
             status=entry.status,
             created_at=entry.created_at,
             analysis=to_analysis_read(analysis),
-            draft_title=result["title"],
-            draft_content=result["diary_content"],
+            draft_title=result.get("title", "今天的心情记录"),
+            draft_content=result.get("diary_content", f"今天我记录下了这段感受：{payload.raw_content}"),
         ),
         message="entry_analyzed",
     )

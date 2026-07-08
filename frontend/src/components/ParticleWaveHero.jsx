@@ -5,7 +5,10 @@ import { OrbitControls } from 'three/addons/controls/OrbitControls.js';
 const DEFAULT_IMAGE_URL = '/particle-wave-statue.jpg';
 
 export default function ParticleWaveHero({
+  backgroundOpacity = 0.16,
+  fit = 'contain',
   imageUrl = DEFAULT_IMAGE_URL,
+  interactive = false,
   className = '',
   particleSize = 18,
   waveStrength = 0.22,
@@ -22,6 +25,8 @@ export default function ParticleWaveHero({
     let particles = null;
     let backgroundPlane = null;
     let particleMaterial = null;
+    const keyboardRotation = { x: 0, y: 0, z: 0 };
+    const pointer = { x: 0, y: 0 };
 
     const scene = new THREE.Scene();
     scene.background = new THREE.Color(0x050510);
@@ -38,12 +43,16 @@ export default function ParticleWaveHero({
 
     const controls = new OrbitControls(camera, renderer.domElement);
     controls.enableDamping = true;
+    controls.enabled = interactive;
     controls.enablePan = false;
     controls.minDistance = 4.8;
     controls.maxDistance = 10;
+    controls.enableZoom = interactive;
+    controls.enableRotate = interactive;
 
     const textureLoader = new THREE.TextureLoader();
     const clock = new THREE.Clock();
+    renderer.domElement.tabIndex = interactive ? 0 : -1;
 
     function resize() {
       const width = container.clientWidth || 1;
@@ -59,88 +68,131 @@ export default function ParticleWaveHero({
 
       const elapsedTime = clock.getElapsedTime();
       particleMaterial.uniforms.uTime.value = elapsedTime;
-      particles.rotation.y = Math.sin(elapsedTime * 0.2) * 0.08;
-      backgroundPlane.rotation.y = particles.rotation.y;
+      particles.rotation.x = keyboardRotation.x + pointer.y * 0.08;
+      particles.rotation.y = keyboardRotation.y + pointer.x * 0.12 + Math.sin(elapsedTime * 0.2) * 0.08;
+      particles.rotation.z = keyboardRotation.z;
+      backgroundPlane.rotation.copy(particles.rotation);
 
       controls.update();
       renderer.render(scene, camera);
       animationFrame = window.requestAnimationFrame(animate);
     }
 
-    resize();
-    window.addEventListener('resize', resize);
+    function handlePointerMove(event) {
+      if (!interactive) return;
+      const rect = container.getBoundingClientRect();
+      pointer.x = ((event.clientX - rect.left) / Math.max(rect.width, 1) - 0.5) * 2;
+      pointer.y = -(((event.clientY - rect.top) / Math.max(rect.height, 1) - 0.5) * 2);
+    }
 
-    loadImage(imageUrl).then((image) => {
-      if (isDisposed) return;
+    function handleKeyDown(event) {
+      if (!interactive) return;
 
-      const imageRatio = image.width / image.height;
-      const planeHeight = 6.6;
-      const planeWidth = planeHeight * imageRatio;
+      const tagName = event.target?.tagName;
+      if (tagName === 'INPUT' || tagName === 'TEXTAREA' || tagName === 'SELECT') return;
 
-      const texture = textureLoader.load(imageUrl);
-      const backgroundGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-      const backgroundMaterial = new THREE.MeshBasicMaterial({
-        map: texture,
-        transparent: true,
-        opacity: 0.16,
-        depthWrite: false,
-      });
+      const rotationStep = 0.07;
+      const zoomStep = 0.45;
+      const key = event.key.toLowerCase();
 
-      backgroundPlane = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
-      backgroundPlane.position.z = -0.25;
-      scene.add(backgroundPlane);
-
-      const sampleWidth = 260;
-      const sampleHeight = Math.round(sampleWidth / imageRatio);
-      const canvas = document.createElement('canvas');
-      canvas.width = sampleWidth;
-      canvas.height = sampleHeight;
-
-      const context = canvas.getContext('2d');
-      if (!context) return;
-
-      context.drawImage(image, 0, 0, sampleWidth, sampleHeight);
-      const imageData = context.getImageData(0, 0, sampleWidth, sampleHeight);
-      const data = imageData.data;
-      const positions = [];
-      const colors = [];
-      const randoms = [];
-      const step = 2;
-
-      for (let y = 0; y < sampleHeight; y += step) {
-        for (let x = 0; x < sampleWidth; x += step) {
-          const index = (y * sampleWidth + x) * 4;
-          const red = data[index] / 255;
-          const green = data[index + 1] / 255;
-          const blue = data[index + 2] / 255;
-          const brightness = red * 0.299 + green * 0.587 + blue * 0.114;
-
-          if (brightness < 0.03) continue;
-
-          positions.push((x / sampleWidth - 0.5) * planeWidth);
-          positions.push(-(y / sampleHeight - 0.5) * planeHeight);
-          positions.push((Math.random() - 0.5) * 0.25);
-          colors.push(red, green, blue);
-          randoms.push(Math.random());
-        }
+      if (key === 'arrowleft' || key === 'a') keyboardRotation.y -= rotationStep;
+      else if (key === 'arrowright' || key === 'd') keyboardRotation.y += rotationStep;
+      else if (key === 'arrowup' || key === 'w') keyboardRotation.x -= rotationStep;
+      else if (key === 'arrowdown' || key === 's') keyboardRotation.x += rotationStep;
+      else if (key === 'q') keyboardRotation.z -= rotationStep;
+      else if (key === 'e') keyboardRotation.z += rotationStep;
+      else if (key === '+' || key === '=') camera.position.z = Math.max(controls.minDistance, camera.position.z - zoomStep);
+      else if (key === '-' || key === '_') camera.position.z = Math.min(controls.maxDistance, camera.position.z + zoomStep);
+      else if (key === '0' || key === 'r') {
+        keyboardRotation.x = 0;
+        keyboardRotation.y = 0;
+        keyboardRotation.z = 0;
+        camera.position.set(0, 0, 7.5);
+      } else {
+        return;
       }
 
-      const geometry = new THREE.BufferGeometry();
-      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-      geometry.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3));
-      geometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(randoms, 1));
+      event.preventDefault();
+    }
 
-      particleMaterial = new THREE.ShaderMaterial({
-        transparent: true,
-        depthWrite: false,
-        blending: THREE.AdditiveBlending,
-        uniforms: {
-          uTime: { value: 0 },
-          uSize: { value: particleSize },
-          uWaveStrength: { value: waveStrength },
-          uWaveSpeed: { value: waveSpeed },
-        },
-        vertexShader: `
+    resize();
+    window.addEventListener('resize', resize);
+    container.addEventListener('pointermove', handlePointerMove);
+    window.addEventListener('keydown', handleKeyDown);
+
+    loadImage(imageUrl)
+      .catch(() => loadImage(DEFAULT_IMAGE_URL))
+      .then((image) => {
+        if (isDisposed) return;
+
+        const sourceUrl = image.currentSrc || image.src;
+        const imageRatio = image.width / image.height;
+        const { width: planeWidth, height: planeHeight } = getPlaneSize(imageRatio, camera, fit);
+
+        const texture = textureLoader.load(sourceUrl);
+        const backgroundGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+        const backgroundMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          opacity: backgroundOpacity,
+          depthWrite: false,
+        });
+
+        backgroundPlane = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+        backgroundPlane.position.z = -0.25;
+        scene.add(backgroundPlane);
+
+        const sampleWidth = 300;
+        const sampleHeight = Math.round(sampleWidth / imageRatio);
+        const canvas = document.createElement('canvas');
+        canvas.width = sampleWidth;
+        canvas.height = sampleHeight;
+
+        const context = canvas.getContext('2d');
+        if (!context) return;
+
+        context.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+        const imageData = context.getImageData(0, 0, sampleWidth, sampleHeight);
+        const data = imageData.data;
+        const positions = [];
+        const colors = [];
+        const randoms = [];
+        const step = 2;
+
+        for (let y = 0; y < sampleHeight; y += step) {
+          for (let x = 0; x < sampleWidth; x += step) {
+            const index = (y * sampleWidth + x) * 4;
+            const red = data[index] / 255;
+            const green = data[index + 1] / 255;
+            const blue = data[index + 2] / 255;
+            const brightness = red * 0.299 + green * 0.587 + blue * 0.114;
+
+            if (brightness < 0.03) continue;
+
+            positions.push((x / sampleWidth - 0.5) * planeWidth);
+            positions.push(-(y / sampleHeight - 0.5) * planeHeight);
+            positions.push((Math.random() - 0.5) * 0.25);
+            colors.push(Math.min(red * 1.18, 1), Math.min(green * 1.14, 1), Math.min(blue * 1.12, 1));
+            randoms.push(Math.random());
+          }
+        }
+
+        const geometry = new THREE.BufferGeometry();
+        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+        geometry.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3));
+        geometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(randoms, 1));
+
+        particleMaterial = new THREE.ShaderMaterial({
+          transparent: true,
+          depthWrite: false,
+          blending: THREE.AdditiveBlending,
+          uniforms: {
+            uTime: { value: 0 },
+            uSize: { value: particleSize },
+            uWaveStrength: { value: waveStrength },
+            uWaveSpeed: { value: waveSpeed },
+          },
+          vertexShader: `
           uniform float uTime;
           uniform float uSize;
           uniform float uWaveStrength;
@@ -174,7 +226,7 @@ export default function ParticleWaveHero({
             vAlpha = 0.25 + brightness * 0.75 + glow * 0.35;
           }
         `,
-        fragmentShader: `
+          fragmentShader: `
           varying vec3 vColor;
           varying float vAlpha;
 
@@ -187,24 +239,26 @@ export default function ParticleWaveHero({
             }
 
             float strength = 1.0 - smoothstep(0.0, 0.5, dist);
-            vec3 dreamColor = vec3(0.35, 0.45, 1.0);
-            vec3 finalColor = mix(vColor, dreamColor, 0.22);
-            finalColor *= 1.25 + strength * 0.8;
+            vec3 dreamColor = vec3(0.75, 0.86, 1.0);
+            vec3 finalColor = mix(vColor, dreamColor, 0.12);
+            finalColor *= 1.45 + strength * 0.95;
 
             gl_FragColor = vec4(finalColor, strength * vAlpha);
           }
         `,
-      });
+        });
 
-      particles = new THREE.Points(geometry, particleMaterial);
-      scene.add(particles);
-      animate();
-    });
+        particles = new THREE.Points(geometry, particleMaterial);
+        scene.add(particles);
+        animate();
+      });
 
     return () => {
       isDisposed = true;
       window.cancelAnimationFrame(animationFrame);
       window.removeEventListener('resize', resize);
+      window.removeEventListener('keydown', handleKeyDown);
+      container.removeEventListener('pointermove', handlePointerMove);
       controls.dispose();
       scene.traverse((object) => {
         if (object.geometry) object.geometry.dispose();
@@ -219,14 +273,45 @@ export default function ParticleWaveHero({
       renderer.dispose();
       renderer.domElement.remove();
     };
-  }, [imageUrl, particleSize, waveSpeed, waveStrength]);
+  }, [backgroundOpacity, fit, imageUrl, interactive, particleSize, waveSpeed, waveStrength]);
 
-  return <div aria-hidden="true" className={`particle-wave-hero ${className}`} ref={containerRef} />;
+  return (
+    <div
+      aria-hidden={!interactive}
+      aria-label={interactive ? 'Interactive particle wave background' : undefined}
+      className={`particle-wave-hero ${interactive ? 'is-interactive' : ''} ${className}`}
+      ref={containerRef}
+      tabIndex={interactive ? 0 : -1}
+    />
+  );
+}
+
+function getPlaneSize(imageRatio, camera, fit) {
+  if (fit !== 'cover') {
+    const height = 6.6;
+    return { width: height * imageRatio, height };
+  }
+
+  const distance = camera.position.z + 0.25;
+  const fov = THREE.MathUtils.degToRad(camera.fov);
+  const visibleHeight = 2 * Math.tan(fov / 2) * distance;
+  const visibleWidth = visibleHeight * camera.aspect;
+  const viewportRatio = visibleWidth / visibleHeight;
+  const padding = 1.12;
+
+  if (imageRatio > viewportRatio) {
+    const height = visibleHeight * padding;
+    return { width: height * imageRatio, height };
+  }
+
+  const width = visibleWidth * padding;
+  return { width, height: width / imageRatio };
 }
 
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const image = new Image();
+    image.crossOrigin = 'anonymous';
     image.onload = () => resolve(image);
     image.onerror = reject;
     image.src = src;

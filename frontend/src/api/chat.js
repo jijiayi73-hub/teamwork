@@ -2,7 +2,7 @@
  * Chat API client for RAG-based conversation feature.
  *
  * All functions follow the API contract defined in:
- * docs/vibe-logs/log-07-rag-chat-api-design.md
+ * docs/contracts/chat-api-v1.md
  *
  * @module chat
  */

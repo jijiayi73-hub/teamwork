@@ -85,6 +85,36 @@ def test_send_message_success_persists_conversation_and_messages(client, auth_he
     assert db_session.query(Message).count() == 2
 
 
+def test_send_chat_response_contract(client, auth_headers):
+    provider = FakeAIProvider()
+    provider.set_response("contract ok")
+    with provider_patch(provider):
+        response = client.post(
+            "/api/v1/chat/messages",
+            headers=auth_headers,
+            json={"mode": "companion", "content": "hello", "use_memory": False},
+        )
+
+    assert response.status_code == 200
+
+    body = response.json()
+    assert body["success"] is True
+    assert body["message"] == "message_sent"
+    assert isinstance(body["request_id"], str)
+
+    data = body["data"]
+    assert data["assistant_message"]["role"] == "assistant"
+    assert data["user_message"]["role"] == "user"
+    assert isinstance(data["conversation"]["id"], int)
+    assert isinstance(data["sources"], list)
+    assert data["safety"]["action"] in {
+        "none",
+        "show_notice",
+        "suggest_support",
+        "trigger_emergency_flow",
+    }
+
+
 def test_validation_and_auth_errors(client, auth_headers):
     no_token = client.post(
         "/api/v1/chat/messages",

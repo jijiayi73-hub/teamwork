@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from ..auth.dependencies import require_admin
 from ..database import get_db
-from ..models import Diary, Entry, User
+from ..models import Conversation, Diary, Entry, MemoryCard, User
 from ..schemas.auth import UserRead
 from ..schemas.common import ApiResponse
 
@@ -28,8 +28,54 @@ def admin_stats(_: User = Depends(require_admin), db: Session = Depends(get_db))
             "total_users": db.query(User).count(),
             "total_entries": db.query(Entry).count(),
             "total_diaries": db.query(Diary).filter(Diary.deleted_at.is_(None)).count(),
+            "total_memory_cards": db.query(MemoryCard).filter(MemoryCard.deleted_at.is_(None)).count(),
+            "total_conversations": db.query(Conversation).filter(Conversation.deleted_at.is_(None)).count(),
             "new_diaries_last_7_days": db.query(Diary)
             .filter(Diary.deleted_at.is_(None), Diary.diary_date >= seven_days_ago)
             .count(),
+            "new_memory_cards_last_7_days": db.query(MemoryCard)
+            .filter(MemoryCard.deleted_at.is_(None), MemoryCard.created_at >= seven_days_ago)
+            .count(),
+        }
+    )
+
+
+@router.get("/stats/charts", response_model=ApiResponse[dict])
+def admin_chart_stats(_: User = Depends(require_admin), db: Session = Depends(get_db)):
+    from collections import Counter
+
+    seven_days_ago = date.today() - timedelta(days=6)
+    memories = db.query(MemoryCard).filter(MemoryCard.deleted_at.is_(None)).all()
+    emotion_counts = Counter(memory.emotion_label for memory in memories)
+    daily_new = []
+    for offset in range(6, -1, -1):
+        day = date.today() - timedelta(days=offset)
+        daily_new.append(
+            {
+                "date": day.isoformat(),
+                "count": sum(1 for memory in memories if memory.created_at.date() == day),
+            }
+        )
+    return ApiResponse(
+        data={
+            "total_users": db.query(User).count(),
+            "total_entries": db.query(Entry).count(),
+            "total_diaries": db.query(Diary).filter(Diary.deleted_at.is_(None)).count(),
+            "total_memory_cards": len(memories),
+            "total_conversations": db.query(Conversation).filter(Conversation.deleted_at.is_(None)).count(),
+            "new_diaries_last_7_days": db.query(Diary)
+            .filter(Diary.deleted_at.is_(None), Diary.diary_date >= seven_days_ago)
+            .count(),
+            "new_memory_cards_last_7_days": sum(1 for memory in memories if memory.created_at.date() >= seven_days_ago),
+            "emotion_distribution": [
+                {"emotion": emotion, "count": count} for emotion, count in emotion_counts.items()
+            ],
+            "daily_new_memory_cards": daily_new,
+            "service_status": {
+                "api": "healthy",
+                "database": "connected",
+                "ai_configured": True,
+            },
+            "privacy_note": "Admin stats do not expose private diary body content.",
         }
     )

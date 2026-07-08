@@ -1,0 +1,12 @@
+{
+  "success": false,
+  "data": null,
+  "message": "validation_failed",
+  "request_id": "local",
+  "error_code": "VALIDATION_ERROR",
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "mode is required when creating a new conversation",
+    "details": null
+  }
+}

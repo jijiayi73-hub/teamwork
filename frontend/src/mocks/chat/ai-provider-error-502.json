@@ -1,0 +1,15 @@
+{
+  "success": false,
+  "data": null,
+  "message": "ai_service_unavailable",
+  "request_id": "local",
+  "error_code": "INTERNAL_ERROR",
+  "error": {
+    "code": "INTERNAL_ERROR",
+    "message": "AI service is temporarily unavailable",
+    "details": {
+      "provider": "deepseek",
+      "provider_error": "Simulated provider error"
+    }
+  }
+}

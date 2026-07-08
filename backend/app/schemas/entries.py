@@ -10,6 +10,7 @@ class EntryCreate(BaseModel):
     raw_content: str = Field(min_length=1)
     input_type: str = "text"
     source_language: str = "zh-CN"
+    conversation_id: int | None = None  # 可选的对话 ID，用于获取对话上下文进行情绪分析
 
 
 class AnalysisRead(BaseModel):

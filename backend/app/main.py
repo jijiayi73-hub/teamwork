@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
+from pathlib import Path
 
 # Load environment variables from .env file (if exists)
 # This must be done before importing config
@@ -15,9 +17,12 @@ from .config import settings
 configure_logging()
 
 from . import models
-from .routers import admin, auth, chat, diaries, entries, logs, stats
+from .routers import admin, auth, chat, diaries, entries, logs, memories, stats, trash
 
 app = FastAPI(title="InnerGarden API")
+upload_dir = Path(__file__).resolve().parents[1] / "data" / "uploads"
+upload_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploads", StaticFiles(directory=str(upload_dir)), name="uploads")
 
 # Add CORS middleware first
 app.add_middleware(
@@ -42,6 +47,8 @@ app.include_router(stats.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(logs.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
+app.include_router(memories.router, prefix="/api/v1")
+app.include_router(trash.router, prefix="/api/v1")
 
 
 @app.get("/health")

@@ -1,69 +1,84 @@
 /**
- * Chat Types for Inner Garden
+ * Chat API types for Inner Garden.
  *
- * Based on backend database schema for conversations, messages, and message_sources.
- * These types will be used when the backend chat API is implemented.
+ * Source of truth:
+ * - backend/app/schemas/chat.py
+ * - FastAPI /openapi.json
+ * - docs/contracts/chat-api-v1.md
  */
 
-/**
- * Conversation mode: companion for AI companion chat, past_self for chatting with past self
- */
 export type ConversationMode = 'companion' | 'past_self';
-
-/**
- * Message role: user or assistant
- */
 export type MessageRole = 'user' | 'assistant';
-
-/**
- * Message status: pending, completed, or failed
- */
-export type MessageStatus = 'pending' | 'completed' | 'failed';
-
-/**
- * Source type: anchor for the diary being discussed, retrieved for related diaries
- */
 export type SourceType = 'anchor' | 'retrieved';
+export type SafetyLevel = 'none' | 'low' | 'medium' | 'high';
+export type SafetyCategory = 'emotional_distress' | 'self_harm_risk' | 'violence_risk' | null;
+export type SafetyAction = 'none' | 'show_notice' | 'suggest_support' | 'trigger_emergency_flow';
 
-/**
- * Conversation entity
- */
-export interface Conversation {
-  id: number;
-  user_id: number;
-  mode: ConversationMode;
-  title: string;
-  anchor_diary_id: number | null;
-  created_at: string;
-  updated_at: string;
-  deleted_at: string | null;
+export interface ApiResponse<T> {
+  success: true;
+  data: T;
+  message: string;
+  request_id: string;
 }
 
-/**
- * Message entity
- */
-export interface Message {
+export interface ApiErrorResponse {
+  success: false;
+  data: unknown;
+  message: string;
+  request_id: string;
+  error_code: string;
+  details?: Record<string, unknown> | null;
+  error?: {
+    code: string;
+    message: string;
+    details: Record<string, unknown> | null;
+  };
+}
+
+export interface ChatRequest {
+  conversation_id?: number | null;
+  mode?: ConversationMode | null;
+  content: string;
+  use_memory?: boolean;
+  anchor_diary_id?: number | null;
+}
+
+export interface ConversationCreate {
+  mode: ConversationMode;
+  title?: string | null;
+  anchor_diary_id?: number | null;
+}
+
+export interface ConversationRead {
+  id: number;
+  mode: ConversationMode;
+  title: string | null;
+  anchor_diary_id: number | null;
+  started_at: string;
+  updated_at: string;
+  message_count: number;
+}
+
+export interface MessageRead {
   id: number;
   conversation_id: number;
   role: MessageRole;
   content: string;
-  status: MessageStatus;
-  retrieval_used: boolean;
-  model_name: string | null;
-  latency_ms: number | null;
-  token_usage_input: number | null;
-  token_usage_output: number | null;
-  error_code: string | null;
   created_at: string;
-  sources?: MessageSource[];
 }
 
-/**
- * Message Source entity - snapshot of diary at message creation time
- */
 export interface MessageSource {
+  diary_id: number;
+  diary_date: string;
+  title: string;
+  excerpt: string;
+  emotion_label: string;
+  relevance_score: number;
+  source_type: SourceType;
+}
+
+export interface MessageSourceRead {
   id: number;
-  message_id: number;
   diary_id: number | null;
   source_type: SourceType;
   diary_date_snapshot: string | null;
@@ -72,58 +87,64 @@ export interface MessageSource {
   emotion_label_snapshot: string | null;
   relevance_score: number;
   rank: number;
-  created_at: string;
 }
 
-/**
- * Request payload for creating a conversation
- */
-export interface CreateConversationRequest {
-  mode: ConversationMode;
-  title: string;
-  anchor_diary_id?: number;
+export interface RetrievalMetadata {
+  used: boolean;
+  strategy: string;
+  total_found: number;
+  used_in_context: number;
 }
 
-/**
- * Request payload for creating a message
- */
-export interface CreateMessageRequest {
-  conversation_id: number;
-  content: string;
+export interface SafetyCheck {
+  flagged: boolean;
+  level: SafetyLevel;
+  category: SafetyCategory;
+  action: SafetyAction;
 }
 
-/**
- * Response from POST /api/v1/chat/messages
- */
-export interface CreateMessageResponse {
-  message: Message;
-  conversation: Conversation;
+export interface ChatResponse {
+  conversation: ConversationRead;
+  user_message: MessageRead;
+  assistant_message: MessageRead;
+  retrieval: RetrievalMetadata;
+  sources: MessageSource[];
+  safety: SafetyCheck;
 }
 
-/**
- * Response from GET /api/v1/chat/conversations
- */
-export interface ListConversationsResponse {
-  data: Conversation[];
+export interface ConversationListResponse {
+  conversations: ConversationRead[];
+  page: number;
+  page_size: number;
+  total: number;
 }
 
-/**
- * Response from GET /api/v1/chat/conversations/{id}
- */
-export interface GetConversationResponse {
-  data: Conversation;
+export interface ConversationDetailResponse {
+  conversation: ConversationRead;
 }
 
-/**
- * Response from GET /api/v1/chat/conversations/{id}/messages
- */
-export interface ListMessagesResponse {
-  data: Message[];
+export interface ChatHistoryItem {
+  message: MessageRead;
+  sources: MessageSourceRead[];
 }
 
-/**
- * Response from POST /api/v1/chat/conversations
- */
-export interface CreateConversationResponse {
-  data: Conversation;
+export interface MessageListResponse {
+  messages: ChatHistoryItem[];
+  page: number;
+  page_size: number;
+  total: number;
 }
+
+export interface DeleteConversationResponse {
+  deleted_conversation_id: number;
+}
+
+export type Conversation = ConversationRead;
+export type Message = MessageRead;
+export type CreateMessageRequest = ChatRequest;
+export type CreateMessageResponse = ApiResponse<ChatResponse>;
+export type CreateConversationRequest = ConversationCreate;
+export type CreateConversationResponse = ApiResponse<ConversationDetailResponse>;
+export type ListConversationsResponse = ApiResponse<ConversationListResponse>;
+export type GetConversationResponse = ApiResponse<ConversationDetailResponse>;
+export type ListMessagesResponse = ApiResponse<MessageListResponse>;
