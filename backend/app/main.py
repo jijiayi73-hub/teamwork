@@ -1,6 +1,11 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
+# Load environment variables from .env file (if exists)
+# This must be done before importing config
+from dotenv import load_dotenv
+load_dotenv()
+
 # Configure logging before importing other modules
 from .logger.config import configure_logging
 from .logger.middleware import RequestLoggingMiddleware
@@ -10,10 +15,7 @@ from .config import settings
 configure_logging()
 
 from . import models
-from .database import Base, engine
-from .routers import admin, auth, diaries, entries, logs, stats
-
-Base.metadata.create_all(bind=engine)
+from .routers import admin, auth, chat, diaries, entries, logs, stats
 
 app = FastAPI(title="InnerGarden API")
 
@@ -39,6 +41,7 @@ app.include_router(diaries.router, prefix="/api/v1")
 app.include_router(stats.router, prefix="/api/v1")
 app.include_router(admin.router, prefix="/api/v1")
 app.include_router(logs.router, prefix="/api/v1")
+app.include_router(chat.router, prefix="/api/v1")
 
 
 @app.get("/health")

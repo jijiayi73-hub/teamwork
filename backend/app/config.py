@@ -20,5 +20,11 @@ class Settings:
         "http://localhost:5173,http://localhost:5174,http://localhost:5175,http://localhost:3000"
     ).split(","))
 
+    # AI Provider configuration
+    ai_provider: Literal["openai", "deepseek"] = getenv("AI_PROVIDER", "openai")
+    ai_default_model: str = getenv("AI_DEFAULT_MODEL", "gpt-4o-mini")
+    ai_timeout: int = int(getenv("AI_TIMEOUT", "30"))
+    deepseek_base_url: str = getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
+
 
 settings = Settings()
