@@ -1,29 +1,17 @@
+import { getStoredToken, isAuthenticated } from './auth.js';
+
 const API_BASE = '/api/v1';
-const TOKEN_KEY = 'innergarden_demo_access_token';
-const USER_KEY = 'innergarden_demo_user';
 
-const DEMO_USER = {
-  username: 'demo',
-  email: 'demo@innergarden.local',
-  password: 'innergarden-demo',
-  role: 'user',
-};
+// 认证相关函数已迁移到 auth.js 模块
+export { getStoredToken, isAuthenticated } from './auth.js';
+export { getStoredUser } from './auth.js';
 
-export function getStoredToken() {
-  return window.localStorage.getItem(TOKEN_KEY);
-}
-
-export function getStoredUser() {
-  const value = window.localStorage.getItem(USER_KEY);
-  if (!value) return null;
-
-  try {
-    return JSON.parse(value);
-  } catch {
-    return null;
-  }
-}
-
+/**
+ * 基础 API 请求函数
+ * @param {string} path - API 路径
+ * @param {object} options - fetch 选项
+ * @returns {Promise<object>}
+ */
 export async function apiRequest(path, options = {}) {
   const token = getStoredToken();
   const headers = {
@@ -42,52 +30,36 @@ export async function apiRequest(path, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
-    throw new Error(payload.detail || payload.error?.message || `Request failed: ${response.status}`);
+    // 处理错误消息，避免 [object Object]
+    let errorMessage = `Request failed: ${response.status}`;
+    if (payload.detail) {
+      errorMessage = typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail);
+    } else if (payload.error?.message) {
+      errorMessage = payload.error.message;
+    } else if (payload.error) {
+      errorMessage = typeof payload.error === 'string' ? payload.error : JSON.stringify(payload.error);
+    }
+    throw new Error(errorMessage);
   }
 
   return payload;
 }
 
-async function storeSession(payload) {
-  const data = payload.data;
-  window.localStorage.setItem(TOKEN_KEY, data.access_token);
-  window.localStorage.setItem(USER_KEY, JSON.stringify(data.user));
-  return data;
-}
-
-export async function ensureDemoSession() {
-  const token = getStoredToken();
-  if (token) {
-    try {
-      const current = await apiRequest('/auth/me');
-      return { access_token: token, user: current.data };
-    } catch {
-      window.localStorage.removeItem(TOKEN_KEY);
-      window.localStorage.removeItem(USER_KEY);
-    }
-  }
-
-  try {
-    const login = await apiRequest('/auth/login', {
-      method: 'POST',
-      body: JSON.stringify({ email: DEMO_USER.email, password: DEMO_USER.password }),
-    });
-    return storeSession(login);
-  } catch {
-    const register = await apiRequest('/auth/register', {
-      method: 'POST',
-      body: JSON.stringify(DEMO_USER),
-    });
-    return storeSession(register);
-  }
-}
-
+/**
+ * 健康检查
+ */
 export async function healthCheck() {
   return apiRequest('/health');
 }
 
+/**
+ * 创建日记条目
+ * 需要用户已登录
+ */
 export async function createEntry(rawContent) {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest('/entries', {
     method: 'POST',
     body: JSON.stringify({
@@ -98,38 +70,64 @@ export async function createEntry(rawContent) {
   });
 }
 
+/**
+ * 创建日记
+ * 需要用户已登录
+ */
 export async function createDiary(diary) {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest('/diaries', {
     method: 'POST',
     body: JSON.stringify(diary),
   });
 }
 
+/**
+ * 获取日记列表
+ * 需要用户已登录
+ */
 export async function listDiaries() {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest('/diaries');
 }
 
+/**
+ * 获取单个日记
+ * 需要用户已登录
+ */
 export async function getDiary(diaryId) {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest(`/diaries/${diaryId}`);
 }
 
+/**
+ * 获取统计概览
+ * 需要用户已登录
+ */
 export async function getStatsOverview() {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest('/stats/overview');
 }
 
-// Chat API functions (for future backend integration)
-// These will work once the backend chat API is implemented
+// Chat API functions
+// 这些函数将在后端 Chat API 实现后可用
 
 /**
- * Create a new conversation
+ * 创建新对话
  * POST /api/v1/chat/conversations
  */
 export async function createConversation({ mode, title, anchor_diary_id }) {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest('/chat/conversations', {
     method: 'POST',
     body: JSON.stringify({ mode, title, anchor_diary_id }),
@@ -137,38 +135,46 @@ export async function createConversation({ mode, title, anchor_diary_id }) {
 }
 
 /**
- * List all conversations for current user
+ * 获取对话列表
  * GET /api/v1/chat/conversations
  */
 export async function listConversations() {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest('/chat/conversations');
 }
 
 /**
- * Get a specific conversation by ID
+ * 获取单个对话
  * GET /api/v1/chat/conversations/{id}
  */
 export async function getConversation(conversationId) {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest(`/chat/conversations/${conversationId}`);
 }
 
 /**
- * List messages in a conversation
+ * 获取对话消息列表
  * GET /api/v1/chat/conversations/{id}/messages
  */
 export async function listMessages(conversationId) {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest(`/chat/conversations/${conversationId}/messages`);
 }
 
 /**
- * Send a message in a conversation
+ * 发送消息
  * POST /api/v1/chat/messages
  */
 export async function sendMessage({ conversation_id, content }) {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest('/chat/messages', {
     method: 'POST',
     body: JSON.stringify({ conversation_id, content }),
@@ -176,11 +182,13 @@ export async function sendMessage({ conversation_id, content }) {
 }
 
 /**
- * Delete a conversation
+ * 删除对话
  * DELETE /api/v1/chat/conversations/{id}
  */
 export async function deleteConversation(conversationId) {
-  await ensureDemoSession();
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
   return apiRequest(`/chat/conversations/${conversationId}`, {
     method: 'DELETE',
   });

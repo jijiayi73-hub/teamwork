@@ -7,7 +7,7 @@
  * @module chat
  */
 
-import { apiRequest, ensureDemoSession } from './client.js';
+import { apiRequest } from './client.js';
 
 // ============================================================================
 // API Functions
@@ -42,7 +42,6 @@ import { apiRequest, ensureDemoSession } from './client.js';
  * });
  */
 export async function sendChatMessage(request) {
-  await ensureDemoSession();
   return apiRequest('/chat/messages', {
     method: 'POST',
     body: JSON.stringify(request),
@@ -59,7 +58,6 @@ export async function sendChatMessage(request) {
  * @returns {Promise<ConversationListApiResponse>} Response with conversations and pagination
  */
 export async function listConversations(params = {}) {
-  await ensureDemoSession();
   const queryParams = new URLSearchParams();
   if (params.page) queryParams.set('page', params.page);
   if (params.page_size) queryParams.set('page_size', params.page_size);
@@ -81,7 +79,6 @@ export async function listConversations(params = {}) {
  * @returns {Promise<ConversationDetailApiResponse>} Response with created conversation
  */
 export async function createConversation(request) {
-  await ensureDemoSession();
   return apiRequest('/chat/conversations', {
     method: 'POST',
     body: JSON.stringify(request),
@@ -95,7 +92,6 @@ export async function createConversation(request) {
  * @returns {Promise<ConversationDetailApiResponse>} Response with conversation metadata
  */
 export async function getConversation(conversationId) {
-  await ensureDemoSession();
   return apiRequest(`/chat/conversations/${conversationId}`);
 }
 
@@ -109,7 +105,6 @@ export async function getConversation(conversationId) {
  * @returns {Promise<MessageListApiResponse>} Response with messages and sources
  */
 export async function getMessages(conversationId, params = {}) {
-  await ensureDemoSession();
   const queryParams = new URLSearchParams();
   if (params.page) queryParams.set('page', params.page);
   if (params.page_size) queryParams.set('page_size', params.page_size);
@@ -127,7 +122,6 @@ export async function getMessages(conversationId, params = {}) {
  * @returns {Promise<DeleteApiResponse>} Response with deleted conversation ID
  */
 export async function deleteConversation(conversationId) {
-  await ensureDemoSession();
   return apiRequest(`/chat/conversations/${conversationId}`, {
     method: 'DELETE',
   });

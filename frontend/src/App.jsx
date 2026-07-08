@@ -8,7 +8,10 @@ import {
   healthCheck,
   listDiaries,
 } from './api/client';
+import { sendChatMessage } from './api/chat';
+import { getCurrentUser, logout, requireAuth, isAuthenticated } from './api/auth';
 import LiquidMemoryBackground from './components/LiquidMemoryBackground';
+import LoginPage from './components/LoginPage';
 
 const DRAFT_KEY = 'mindful_memory_diary_draft';
 const LOCAL_MEMORIES_KEY = 'mindful_memory_diary_memories';
@@ -16,11 +19,32 @@ const LOCAL_MEMORIES_KEY = 'mindful_memory_diary_memories';
 export default function App() {
   const route = useHashRoute();
   const isMemoryRoute = route.name === 'garden' || route.name === 'detail';
+  const [currentUser, setCurrentUser] = useState(getCurrentUser());
+
+  // 监听认证状态变化
+  useEffect(() => {
+    const handleAuthChange = () => {
+      setCurrentUser(getCurrentUser());
+    };
+    window.addEventListener('auth-change', handleAuthChange);
+    return () => window.removeEventListener('auth-change', handleAuthChange);
+  }, []);
+
+  // 登录页面不需要背景和导航
+  if (route.name === 'login') {
+    return <LoginPage />;
+  }
+
+  // 受保护的路由需要认证
+  const protectedRoutes = ['chat', 'diary', 'garden', 'detail'];
+  if (protectedRoutes.includes(route.name)) {
+    requireAuth();
+  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#10131e] font-body text-white">
       {isMemoryRoute ? <LiquidMemoryBackground /> : <DreamBackdrop />}
-      <TopNav />
+      <TopNav currentUser={currentUser} onAuthChange={() => setCurrentUser(getCurrentUser())} />
       {route.name === 'chat' && <ChatPage />}
       {route.name === 'diary' && <DiaryResultPage />}
       {route.name === 'garden' && <MemoryGardenPage />}
@@ -40,6 +64,7 @@ function useHashRoute() {
     return () => window.removeEventListener('hashchange', handleHashChange);
   }, []);
 
+  if (hash.startsWith('#/login')) return { name: 'login' };
   if (hash.startsWith('#/ai-companion-chat')) return { name: 'chat' };
   if (hash.startsWith('#/diary-result')) return { name: 'diary' };
   if (hash.startsWith('#/memory-garden/')) return { name: 'detail', id: hash.split('/').pop() };
@@ -62,7 +87,12 @@ function DreamBackdrop() {
   );
 }
 
-function TopNav() {
+function TopNav({ currentUser, onAuthChange }) {
+  const handleLogout = () => {
+    logout();
+    onAuthChange();
+  };
+
   return (
     <nav className="relative z-10 flex items-center justify-between px-8 py-6 text-sm text-white/72 lg:px-14">
       <a className="font-display text-lg tracking-wide text-white" href="#/">
@@ -78,6 +108,26 @@ function TopNav() {
         <a className="transition hover:text-white" href="#/about">
           About
         </a>
+        {currentUser ? (
+          <>
+            <span className="text-white/40">|</span>
+            <span className="transition hover:text-white">{currentUser.email}</span>
+            <button
+              className="transition hover:text-white"
+              onClick={handleLogout}
+              type="button"
+            >
+              登出
+            </button>
+          </>
+        ) : (
+          <>
+            <span className="text-white/40">|</span>
+            <a className="transition hover:text-white" href="#/login">
+              登录
+            </a>
+          </>
+        )}
       </div>
     </nav>
   );
@@ -124,13 +174,15 @@ function HomePage() {
 
 function ChatPage() {
   const [messages, setMessages] = useState([
-    { content: '慢慢说，我在听。今天发生了什么？' },
+    { content: '慢慢说，我在听。今天发生了什么？', role: 'assistant' },
   ]);
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const [isSending, setIsSending] = useState(false);
   const [imagePreview, setImagePreview] = useState('');
   const [isListening, setIsListening] = useState(false);
+  const [conversationId, setConversationId] = useState(null);
+  const [conversationMode] = useState('companion');
 
   async function handleSend() {
     const rawContent = text.trim();
@@ -140,33 +192,61 @@ function ChatPage() {
     setNote('');
     setText('');
 
+    // 添加用户消息到界面
+    setMessages((current) => [
+      ...current,
+      { content: rawContent, role: 'user' },
+    ]);
+
     try {
-      const response = await createEntry(rawContent);
-      const entry = response.data;
-      window.localStorage.setItem(
-        DRAFT_KEY,
-        JSON.stringify({
-          entry_id: entry.id,
-          title: entry.draft_title,
-          content: entry.draft_content,
-          analysis: entry.analysis,
-          raw_content: entry.raw_content,
-          image_preview: imagePreview,
-        }),
-      );
+      const response = await sendChatMessage({
+        conversation_id: conversationId,
+        mode: conversationId ? null : conversationMode,
+        content: rawContent,
+        use_memory: false,
+        anchor_diary_id: null,
+      });
+
+      // 保存 conversation_id 以继续对话
+      if (response.data?.conversation?.id) {
+        setConversationId(response.data.conversation.id);
+      }
+
+      // 添加 AI 回复到界面
       setMessages((current) => [
         ...current,
-        { content: buildCompanionReply(rawContent, entry.analysis) },
+        {
+          content: response.data?.assistant_message?.content || '我收到了你的消息，但似乎没能生成回复。请再试一次。',
+          role: 'assistant',
+        },
       ]);
+
       setNote('已为你轻轻整理好这一段。');
+
+      // 保存 draft 用于日记生成（兼容现有流程）
+      const draftData = {
+        entry_id: response.data?.user_message?.id || `chat-${Date.now()}`,
+        title: response.data?.conversation?.title || 'AI 对话记录',
+        content: rawContent,
+        raw_content: rawContent,
+        image_preview: imagePreview,
+        analysis: {
+          primary_emotion: 'calm',
+          summary: '来自 AI 对话的记录',
+          suggestion: '你可以继续和 AI 聊天，或者将这段对话整理成日记。',
+          emotion_score: 60,
+          risk_level: 'low',
+        },
+        source: 'chat_api',
+      };
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draftData));
     } catch (error) {
-      const mockDraft = buildLocalDraft(rawContent, imagePreview);
-      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(mockDraft));
-      setMessages((current) => [
-        ...current,
-        { content: '我听见了。谢谢你把这一点放在这里，它不需要马上被解释清楚，只要先被温柔地接住。' },
-      ]);
-      setNote(`后端暂时没有回应，已先用本地 mock 保存这段记录：${error.message}`);
+      const errorDetail = error.message || (typeof error === 'string' ? error : JSON.stringify(error));
+      setNote(`发送失败：${errorDetail}`);
+      console.error('Chat API 调用失败:', error);
+
+      // 移除用户消息（因为发送失败）
+      setMessages((current) => current.filter((m) => m.content !== rawContent));
     } finally {
       setIsSending(false);
     }
@@ -246,7 +326,7 @@ function ChatPage() {
           <div className="ai-notification-list">
             {messages.map((message, index) => (
               <div className="ai-notification" key={`${message.content}-${index}`}>
-                <span className="ai-notification-dot" />
+                {message.role !== 'user' && <span className="ai-notification-dot" />}
                 <p>{message.content}</p>
               </div>
             ))}
@@ -326,7 +406,10 @@ function DiaryResultPage() {
       setStatus('保存成功，已写入真实后端 /api/v1/diaries。');
       window.location.hash = '#/memory-garden';
     } catch (error) {
-      setStatus(`保存失败：${error.message}`);
+      // 改进错误消息显示
+      const errorDetail = error.message || (typeof error === 'string' ? error : JSON.stringify(error));
+      setStatus(`保存失败：${errorDetail}`);
+      console.error('保存日记失败:', error);
     } finally {
       setIsSaving(false);
     }
@@ -563,7 +646,7 @@ function MemoryDetailPage({ diaryId }) {
 
 function AboutPage() {
   const [status, setStatus] = useState('');
-  const user = getStoredUser();
+  const currentUser = getCurrentUser();
 
   async function handleHealthCheck() {
     setStatus('正在调用 GET /api/v1/health...');
@@ -582,7 +665,7 @@ function AboutPage() {
       subtitle="这里用于演示当前按钮能接入哪些真实后端 API，以及哪些能力仍是待实现接口。"
     >
       <section className="panel space-y-5">
-        <p className="text-white/70">当前 demo 用户：{user?.email || '尚未创建会话'}</p>
+        <p className="text-white/70">当前用户：{currentUser?.email || '尚未登录'}</p>
         <button className="primary-action" onClick={handleHealthCheck} type="button">
           检查后端健康状态
         </button>
