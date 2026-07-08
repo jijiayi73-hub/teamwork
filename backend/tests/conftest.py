@@ -4,6 +4,7 @@ Pytest configuration and shared fixtures for InnerGarden API tests.
 
 import sys
 from pathlib import Path
+from unittest.mock import MagicMock
 
 import pytest
 from fastapi.testclient import TestClient
@@ -13,6 +14,14 @@ from sqlalchemy.pool import StaticPool
 
 # Add parent directory to path for imports
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
+
+# Mock openai module before importing app
+sys.modules['openai'] = MagicMock()
+sys.modules['openai.OpenAI'] = MagicMock
+sys.modules['openai.api_key'] = MagicMock
+sys.modules['openai.APITimeoutError'] = Exception
+sys.modules['openai.RateLimitError'] = Exception
+sys.modules['openai.APIError'] = Exception
 
 from app.database import Base, get_db
 from app.main import app
@@ -139,3 +148,38 @@ def sample_diary(client, auth_headers, sample_entry):
     response = client.post("/api/v1/diaries", headers=auth_headers, json=diary_data)
     assert response.status_code == 201
     return response.json()["data"]
+
+
+# ============================================================================
+# Chat Test Fixtures
+# ============================================================================
+
+
+@pytest.fixture(scope="function")
+def fake_ai_provider():
+    """Provide a fake AI provider for testing."""
+    from tests.chat_test_utils import FakeAIProvider
+    provider = FakeAIProvider()
+    provider.set_response("这是测试回复")
+    return provider
+
+
+@pytest.fixture(scope="function")
+def timeout_ai_provider():
+    """Provide a timeout AI provider for testing."""
+    from tests.chat_test_utils import TimeoutAIProvider
+    return TimeoutAIProvider()
+
+
+@pytest.fixture(scope="function")
+def failed_ai_provider():
+    """Provide a failed AI provider for testing."""
+    from tests.chat_test_utils import FailedAIProvider
+    return FailedAIProvider()
+
+
+@pytest.fixture(scope="function")
+def ratelimit_ai_provider():
+    """Provide a rate limit AI provider for testing."""
+    from tests.chat_test_utils import RateLimitAIProvider
+    return RateLimitAIProvider()
