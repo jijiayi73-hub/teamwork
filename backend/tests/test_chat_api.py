@@ -5,6 +5,7 @@ from unittest.mock import patch
 
 from app.models.chat import Conversation, Message
 from app.models.diary import Diary, EmotionAnalysis, Entry, User
+from app.services.ai_provider import AIConfigError
 from tests.chat_test_utils import FailedAIProvider, FakeAIProvider, TimeoutAIProvider
 
 
@@ -55,6 +56,10 @@ def create_diary(db_session, user_id: int, title: str = "Anchor", days: int = 0)
 
 def provider_patch(provider):
     return patch("app.services.ai_provider.get_provider", return_value=provider)
+
+
+def provider_config_error_patch(message: str = "openai package not installed"):
+    return patch("app.services.ai_provider.get_provider", side_effect=AIConfigError(message))
 
 
 def test_chat_routes_are_registered(client):
@@ -232,4 +237,16 @@ def test_ai_timeout_and_provider_error_statuses_save_only_user_message(client, a
     assert failed.status_code == 502
     assert failed.json()["error"]["details"]["provider"] in {"openai", "deepseek"}
     assert db_session.query(Message).filter_by(role="user").count() == 2
+    assert db_session.query(Message).filter_by(role="assistant").count() == 0
+
+    with provider_config_error_patch():
+        config_failed = client.post(
+            "/api/v1/chat/messages",
+            headers=auth_headers,
+            json={"mode": "companion", "content": "config fail", "use_memory": False},
+        )
+    assert config_failed.status_code == 502
+    assert config_failed.json()["message"] == "ai_service_unavailable"
+    assert config_failed.json()["error"]["details"]["provider_error"] == "openai package not installed"
+    assert db_session.query(Message).filter_by(role="user").count() == 3
     assert db_session.query(Message).filter_by(role="assistant").count() == 0

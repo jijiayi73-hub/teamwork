@@ -12,6 +12,12 @@ FRONTEND_DIR="$PROJECT_ROOT/frontend"
 LOG_DIR="$PROJECT_ROOT/logs"
 FLAG_FILE="$BACKEND_DIR/.installed"
 BACKEND_VENV_DIR="$BACKEND_DIR/.venv"
+BACKEND_REQUIREMENTS="$BACKEND_DIR/requirements.txt"
+BACKEND_REQUIREMENTS_STAMP="$BACKEND_VENV_DIR/.requirements.sha256"
+BACKEND_HOST="${BACKEND_HOST:-0.0.0.0}"
+FRONTEND_HOST="${FRONTEND_HOST:-0.0.0.0}"
+BACKEND_PORT="${BACKEND_PORT:-8000}"
+FRONTEND_PORT="${FRONTEND_PORT:-5173}"
 
 # 颜色
 GREEN='\033[0;32m'
@@ -43,6 +49,33 @@ find_python() {
     return 1
 }
 
+hash_file() {
+    local file="$1"
+
+    if command -v shasum >/dev/null 2>&1; then
+        shasum -a 256 "$file" | awk '{print $1}'
+        return 0
+    fi
+
+    if command -v sha256sum >/dev/null 2>&1; then
+        sha256sum "$file" | awk '{print $1}'
+        return 0
+    fi
+
+    return 1
+}
+
+requirements_are_current() {
+    local current_hash=""
+    local installed_hash=""
+
+    [ -f "$BACKEND_REQUIREMENTS_STAMP" ] || return 1
+    current_hash="$(hash_file "$BACKEND_REQUIREMENTS" 2>/dev/null || true)"
+    [ -n "$current_hash" ] || return 1
+    installed_hash="$(cat "$BACKEND_REQUIREMENTS_STAMP" 2>/dev/null || true)"
+    [ "$current_hash" = "$installed_hash" ]
+}
+
 wait_for_url() {
     local url="$1"
     local name="$2"
@@ -65,6 +98,25 @@ PY
 
     echo "❌ $name 启动失败，请查看 logs 目录"
     return 1
+}
+
+detect_lan_ip() {
+    local ip=""
+
+    if command -v ipconfig >/dev/null 2>&1; then
+        ip="$(ipconfig getifaddr en0 2>/dev/null || true)"
+        [ -n "$ip" ] || ip="$(ipconfig getifaddr en1 2>/dev/null || true)"
+    fi
+
+    if [ -z "$ip" ] && command -v hostname >/dev/null 2>&1; then
+        ip="$(hostname -I 2>/dev/null | awk '{print $1}' || true)"
+    fi
+
+    if [ -z "$ip" ] && command -v ip >/dev/null 2>&1; then
+        ip="$(ip route get 1.1.1.1 2>/dev/null | awk '{for (i=1; i<=NF; i++) if ($i=="src") {print $(i+1); exit}}' || true)"
+    fi
+
+    echo "$ip"
 }
 
 cleanup() {
@@ -95,7 +147,7 @@ fi
 # 2. 安装依赖
 # ============================================================================
 
-if [ -f "$FLAG_FILE" ] && [ -d "$BACKEND_VENV_DIR" ] && [ -d "$FRONTEND_DIR/node_modules" ]; then
+if [ -f "$FLAG_FILE" ] && [ -d "$BACKEND_VENV_DIR" ] && [ -d "$FRONTEND_DIR/node_modules" ] && requirements_are_current; then
     echo -e "${GREEN}✅ 依赖已就绪，快速启动${NC}"
 else
     echo -e "${YELLOW}🔧 首次运行，设置环境...${NC}"
@@ -119,6 +171,7 @@ else
 
     # 标记安装完成
     touch "$FLAG_FILE"
+    hash_file "$BACKEND_REQUIREMENTS" > "$BACKEND_REQUIREMENTS_STAMP" 2>/dev/null || rm -f "$BACKEND_REQUIREMENTS_STAMP"
     echo -e "  ${GREEN}✅ 安装完成！${NC}"
     echo ""
 fi
@@ -135,36 +188,48 @@ source "$BACKEND_VENV_DIR/bin/activate"
 python -m alembic upgrade head
 
 # 启动后端
-uvicorn app.main:app --host 127.0.0.1 --port 8000 > "$LOG_DIR/backend.log" 2>&1 &
+uvicorn app.main:app --host "$BACKEND_HOST" --port "$BACKEND_PORT" > "$LOG_DIR/backend.log" 2>&1 &
 BACKEND_PID=$!
 echo $BACKEND_PID > "$LOG_DIR/backend.pid"
 
 # 启动前端
 cd "$FRONTEND_DIR"
-npm run dev -- --host 127.0.0.1 > "$LOG_DIR/frontend.log" 2>&1 &
+npm run dev -- --host "$FRONTEND_HOST" --port "$FRONTEND_PORT" > "$LOG_DIR/frontend.log" 2>&1 &
 FRONTEND_PID=$!
 echo $FRONTEND_PID > "$LOG_DIR/frontend.pid"
 
-if ! wait_for_url "http://127.0.0.1:8000/api/v1/health" "后端 API"; then
+if ! wait_for_url "http://127.0.0.1:$BACKEND_PORT/api/v1/health" "后端 API"; then
     tail -n 40 "$LOG_DIR/backend.log" || true
     cleanup
     exit 1
 fi
 
-if ! wait_for_url "http://127.0.0.1:5173" "前端界面"; then
+if ! wait_for_url "http://127.0.0.1:$FRONTEND_PORT" "前端界面"; then
     tail -n 40 "$LOG_DIR/frontend.log" || true
     cleanup
     exit 1
 fi
+
+LAN_IP="$(detect_lan_ip)"
 
 echo ""
 echo -e "${GREEN}========================================${NC}"
 echo -e "${GREEN}🎉 Inner Garden 已启动!${NC}"
 echo -e "${GREEN}========================================${NC}"
 echo ""
-echo "  📡 后端 API:   ${BLUE}http://localhost:8000${NC}"
-echo "  📄 API 文档:   ${BLUE}http://localhost:8000/docs${NC}"
-echo "  🌐 前端界面:   ${BLUE}http://localhost:5173${NC}"
+echo "  📡 后端 API:   ${BLUE}http://localhost:$BACKEND_PORT${NC}"
+echo "  📄 API 文档:   ${BLUE}http://localhost:$BACKEND_PORT/docs${NC}"
+echo "  🌐 前端界面:   ${BLUE}http://localhost:$FRONTEND_PORT${NC}"
+if [ -n "$LAN_IP" ]; then
+    echo ""
+    echo "  🔗 局域网访问:"
+    echo "  📡 后端 API:   ${BLUE}http://$LAN_IP:$BACKEND_PORT${NC}"
+    echo "  📄 API 文档:   ${BLUE}http://$LAN_IP:$BACKEND_PORT/docs${NC}"
+    echo "  🌐 前端界面:   ${BLUE}http://$LAN_IP:$FRONTEND_PORT${NC}"
+else
+    echo ""
+    echo -e "  ${YELLOW}⚠️ 未能自动识别局域网 IP，请用本机实际 IP 访问端口 $BACKEND_PORT / $FRONTEND_PORT${NC}"
+fi
 echo ""
 echo "  按 Ctrl+C 停止所有服务"
 echo ""
