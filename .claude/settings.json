@@ -38,7 +38,8 @@
       "Bash(curl -s -X POST http://localhost:8001/api/v1/entries -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ' --data-raw '{\"raw_content\":\"test\"}')",
       "Bash(curl -s -X POST http://localhost:8001/api/v1/entries -H 'Content-Type: application/json' -H 'Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ' --data-raw '{\"raw_content\":\"今天情绪平静，这是一段本地 mock 的温柔整理，用来保证前端演示流程可以继续。\"}')",
       "Bash(curl -s -X POST http://localhost:8001/api/v1/entries -H \"Content-Type: application/json\" -H \"Authorization: Bearer eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiIxNCIsInJvbGUiOiJ1c2VyIiwiaWF0IjoxNzgzNTA0NDk3LCJleHAiOjE3ODM1OTA4OTd9.2uO2DlN0NZModHDgJlDFisL7S-DDD79XvC2GUgwBlNQ\" -d @test_entry.json)",
-      "Bash(py -c \"from app.main import app; from app.schemas.auth import UserUpdate; print\\('Backend imports OK'\\)\")"
+      "Bash(py -c \"from app.main import app; from app.schemas.auth import UserUpdate; print\\('Backend imports OK'\\)\")",
+      "Bash(ssh vps *)"
     ]
   }
 }

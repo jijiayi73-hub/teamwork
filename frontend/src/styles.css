@@ -243,6 +243,13 @@ body {
   animation: notification-rise 260ms ease both;
 }
 
+.ai-notification-content {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  align-items: flex-start;
+}
+
 .ai-notification p {
   margin: 0;
   font-size: 0.95rem;
@@ -256,6 +263,59 @@ body {
   border-radius: 999px;
   background: #dbeaff;
   box-shadow: 0 0 18px rgba(219, 234, 255, 0.9);
+}
+
+/* TTS Play Button */
+.tts-play-button {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.08);
+  padding: 0.4rem 0.75rem;
+  color: rgba(255, 255, 255, 0.7);
+  font-size: 0.75rem;
+  cursor: pointer;
+  transition: all 160ms ease;
+  outline: none;
+}
+
+.tts-play-button:hover {
+  background: rgba(255, 255, 255, 0.15);
+  color: rgba(255, 255, 255, 0.9);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.tts-play-button.is-playing {
+  background: rgba(219, 234, 255, 0.25);
+  border-color: rgba(219, 234, 255, 0.5);
+  color: #dbeaff;
+}
+
+.tts-icon {
+  font-size: 0.85rem;
+  line-height: 1;
+}
+
+.tts-text {
+  font-size: 0.7rem;
+  font-weight: 500;
+}
+
+@keyframes tts-pulse {
+  0%, 100% {
+    opacity: 0.7;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 1;
+    transform: scale(1.05);
+  }
+}
+
+.tts-play-button.is-playing .tts-icon {
+  animation: tts-pulse 1.4s ease-in-out infinite;
 }
 
 .chat-note {

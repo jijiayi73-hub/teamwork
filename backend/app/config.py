@@ -40,5 +40,14 @@ class Settings:
     volces_base_url: str = getenv("VOLCES_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
     volces_image_model: str = getenv("VOLCES_IMAGE_MODEL", "doubao-seedream-5-0-260128")
 
+    # Volcengine TTS configuration
+    volcengine_tts_api_key: str = getenv("VOLCENGINE_TTS_API_KEY", "")
+    volcengine_tts_resource_id: str = getenv("VOLCENGINE_TTS_RESOURCE_ID", "seed-tts-2.0")
+    volcengine_tts_speaker: str = getenv("VOLCENGINE_TTS_SPEAKER", "zh_female_qingxin")
+    volcengine_tts_endpoint: str = getenv("VOLCENGINE_TTS_ENDPOINT", "wss://openspeech.bytedance.com/api/v3/tts/bidirection")
+    # Legacy console support (optional)
+    volcengine_tts_app_id: str = getenv("VOLCENGINE_TTS_APP_ID", "")
+    volcengine_tts_access_key: str = getenv("VOLCENGINE_TTS_ACCESS_KEY", "")
+
 
 settings = Settings()

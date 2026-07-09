@@ -1,5 +1,71 @@
 # Inner Garden Current Status
 
+## 2026-07-10 Update: TASK-036 日记生成 Fallback 只记录用户对话
+
+修复日记生成 fallback 逻辑，当 LLM 无法生成足够的日记内容时，只记录用户对话内容，不包含 AI 回复。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 前端用户消息提取 | Implemented | `transcriptFromUserMessages()` 只提取 `role === 'user'` 的消息 |
+| 前端 Fallback | Updated | `handleGenerateDiary()` 使用 `userTranscript` 而非包含 AI 回复的 `transcript` |
+| 后端用户消息提取 | Implemented | `_extract_user_content_from_conversation()` 从对话中提取用户消息 |
+| 后端 Fallback | Updated | `analyze_text_with_llm()` 在所有 fallback 路径使用纯用户内容 |
+| 前端构建 | Passing | `npm run build` → ✓ built in 2.86s |
+| 后端导入 | Passing | `py -c "from app.services.analysis_service import ..."` → OK |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.86s
+
+cd backend
+py -c "from app.services.analysis_service import analyze_text_with_llm, _extract_user_content_from_conversation; print('Backend imports OK')"
+# Result: Backend imports OK
+```
+
+**Changes:**
+- **Frontend**: 更新 `frontend/src/AppFixed.jsx` - 添加 `transcriptFromUserMessages()` 函数，更新 `handleGenerateDiary()` fallback 逻辑
+- **Backend**: 更新 `backend/app/services/analysis_service.py` - 添加 `_extract_user_content_from_conversation()` 函数，更新 `analyze_text_with_llm()` fallback 逻辑
+
+**Expected behavior:**
+- 当 LLM 成功生成日记内容时，使用 AI 生成的内容
+- 当 LLM 返回空内容或信息量不足时，使用纯用户对话作为日记内容（不包含 AI 回复）
+- 前后端 fallback 逻辑保持一致
+
+---
+
+## 2026-07-10 Update: TASK-035 VPS测试数据生成
+
+在VPS端生成测试账户和对话数据，用于演示和测试。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 测试数据脚本 | Implemented | `scripts/generate-test-data.py` 创建完成 |
+| 测试账户 | Created | test1 / test1@example.com / 123456 (User ID: 15) |
+| 6月对话数据 | Generated | 29个对话 (6.1-6.29)，每日2-4组消息交换 |
+| VPS数据验证 | Passing | API返回87个对话总数 |
+
+**Validation:**
+```bash
+py scripts/generate-test-data.py
+# Result: ✅ 29 conversations created with messages
+
+curl https://jijiayi.online/api/v1/chat/conversations
+# Result: 87 total conversations
+```
+
+**Changes:**
+- **Scripts**: 新增 `scripts/generate-test-data.py` - 测试数据生成脚本
+
+**Expected behavior:**
+- 测试用户 test1 可以登录 VPS
+- 拥有6月1-29日的完整对话记录
+- 每日对话包含随机话题和AI回复
+- 可用于功能演示和测试
+
+---
+
 ## 2026-07-10 Update: TASK-034 聊天背景动画效果修复
 
 修复上传图片后背景动画效果消失的问题，确保用户上传图片后仍能保留旋转和粒子动画效果。

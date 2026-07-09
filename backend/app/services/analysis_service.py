@@ -149,6 +149,9 @@ def analyze_text_with_llm(
     Returns:
         与 analyze_text() 相同格式的 dict
     """
+    # 提取纯用户内容（排除 AI 回复），用于 fallback
+    user_only_content = _extract_user_content_from_conversation(conversation_messages, raw_content)
+
     try:
         from .ai_provider import get_provider
         from ..config import settings
@@ -223,13 +226,14 @@ def analyze_text_with_llm(
             if "title" not in result:
                 result["title"] = _generate_title_from_emotion(result["primary_emotion"])
 
-            # 生成 diary_content（如果 LLM 没有提供）
-            if "diary_content" not in result:
-                result["diary_content"] = f"今天我记录下了这段感受：{raw_content}"
+            # 生成 diary_content（如果 LLM 没有提供或为空）
+            if "diary_content" not in result or not result.get("diary_content", "").strip():
+                # 使用纯用户内容作为 fallback，不包含 AI 回复
+                result["diary_content"] = f"今天我记录下了这段感受：{user_only_content}"
 
         except (json.JSONDecodeError, ValueError) as e:
             # JSON 解析失败，回退到规则分析
-            return analyze_text(raw_content)
+            return analyze_text(user_only_content)
 
         # 添加 raw_response_json
         result["raw_response_json"] = json.dumps(result, ensure_ascii=False)
@@ -238,7 +242,7 @@ def analyze_text_with_llm(
 
     except Exception as e:
         # LLM 调用失败，回退到规则分析
-        return analyze_text(raw_content)
+        return analyze_text(user_only_content)
 
 
 def _get_default_value(field: str) -> any:
@@ -270,3 +274,28 @@ def _generate_title_from_emotion(emotion: str) -> str:
         "neutral": "平凡中的诗意",
     }
     return titles.get(emotion, "亦言亦思皆为序章")
+
+
+def _extract_user_content_from_conversation(conversation_messages: list[dict] | None, raw_content: str) -> str:
+    """从对话消息中提取用户内容，用于 fallback。
+
+    优先使用 conversation_messages 中的用户消息（排除 AI 回复）。
+    如果没有 conversation_messages 或提取失败，回退到 raw_content。
+
+    Args:
+        conversation_messages: 对话消息列表 [{role, content}, ...]
+        raw_content: 原始内容（作为最后的 fallback）
+
+    Returns:
+        纯用户对话内容，用换行符连接
+    """
+    if conversation_messages and len(conversation_messages) > 0:
+        # 提取用户消息（排除 AI 回复）
+        user_messages = [
+            msg.get("content", "") for msg in conversation_messages if msg.get("role") == "user"
+        ]
+        user_content = "\n".join(filter(bool, user_messages))
+        if user_content.strip():
+            return user_content
+    # 回退到 raw_content
+    return raw_content

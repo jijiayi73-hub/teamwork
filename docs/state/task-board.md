@@ -1,5 +1,139 @@
 # Inner Garden Task Board
 
+## 2026-07-10 Task Update: TASK-036 日记生成 Fallback 只记录用户对话
+
+### TASK-036: 日记生成中纯用户内容 Fallback
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+当用户对话信息量无法完成补充为日记的要求时，只记录用户的对话内容，不记录 AI 聊天回复，将用户对话内容作为日记内容。
+
+#### 实现内容
+1. **前端用户消息提取** - 添加 `transcriptFromUserMessages()` 函数
+   - 只提取 `role === 'user'` 的消息
+   - 过滤空内容，用换行符连接
+
+2. **前端 Fallback 逻辑** - 更新 `handleGenerateDiary()`
+   - 当 `entry.draft_content` 为空时，使用 `userTranscript` 而非包含 AI 回复的 `transcript`
+   - 确保日记内容只包含用户表达
+
+3. **后端用户消息提取** - 添加 `_extract_user_content_from_conversation()` 函数
+   - 从 `conversation_messages` 中提取 `role === 'user'` 的消息
+   - 优先使用纯用户内容，回退到 `raw_content`
+
+4. **后端 Fallback 逻辑** - 更新 `analyze_text_with_llm()`
+   - 在 LLM 返回空 `diary_content` 时使用纯用户内容
+   - 在 JSON 解析失败和 LLM 调用失败时使用纯用户内容
+   - 保持前后端 fallback 逻辑一致
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 用户消息提取函数 | 新建 | `frontend/src/AppFixed.jsx` |
+| 日记生成 Fallback | 更新 | `frontend/src/AppFixed.jsx` |
+| 用户消息提取函数 | 新建 | `backend/app/services/analysis_service.py` |
+| LLM 分析 Fallback | 更新 | `backend/app/services/analysis_service.py` |
+
+#### 验证
+```bash
+# 前端构建
+cd frontend
+npm run build
+# Result: ✓ built in 2.86s
+
+# 后端导入
+cd backend
+py -c "from app.services.analysis_service import analyze_text_with_llm, _extract_user_content_from_conversation; print('Backend imports OK')"
+# Result: Backend imports OK
+```
+
+#### 预期行为
+- 当 LLM 成功生成日记内容时，使用 AI 生成的内容（150-400字结构化日记）
+- 当 LLM 返回空内容或信息量不足时：
+  - 前端使用纯用户对话作为日记内容（不包含 AI 回复）
+  - 后端 fallback 也使用纯用户对话（保持一致性）
+- 用户看到的日记内容只包含自己说的话，不包含 AI 的回复
+
+---
+
+## 2026-07-10 Task Update: TASK-035 VPS测试数据生成
+
+### TASK-035: 生成测试用户和6月对话数据
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+在VPS端生成测试账户 test1，并创建6月1日-6月29日的AI对话记录，每日内容随机。
+
+#### 实现内容
+1. **测试数据生成脚本** - 创建 `scripts/generate-test-data.py`
+   - 支持用户注册/登录
+   - 自动创建对话
+   - 生成用户和AI消息
+
+2. **测试账户** - test1 / test1@example.com / 123456
+   - 用户ID: 15
+   - 状态: active
+
+3. **对话数据** - 6月1日-6月29日，每日1个对话
+   - 29个对话已创建
+   - 每个对话包含2-4组消息交换
+   - 每日话题随机（如心情、工作、朋友、学习等）
+   - AI回复使用预设的28种模板
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 测试数据脚本 | 新建 | `scripts/generate-test-data.py` |
+
+#### 验证结果
+```bash
+# 运行测试数据生成
+py scripts/generate-test-data.py
+# 结果: ✅ 29个对话创建成功，每日2-4组消息交换
+
+# 验证VPS数据
+curl https://jijiayi.online/api/v1/chat/conversations
+# 结果: 87个对话总数（包括测试数据）
+```
+
+#### 数据统计
+| 指标 | 值 |
+|------|------|
+| 测试用户 | 1 (test1) |
+| 对话数量 | 29 (6.1-6.29) |
+| 每日消息数 | 4-8条 (2-4组交换) |
+| 话题种类 | 28种 |
+| AI回复模板 | 28种 |
+
+#### 使用方式
+```bash
+# 生成测试数据到VPS
+py scripts/generate-test-data.py
+
+# 生成到本地服务器
+py scripts/generate-test-data.py --local
+
+# 自定义URL
+py scripts/generate-test-data.py --url https://your-domain.com
+```
+
+#### 文档
+- `scripts/generate-test-data.py` - 测试数据生成脚本
+
+---
+
 ## 2026-07-10 Task Update: TASK-034 上传图片后背景动画效果修复
 
 ### TASK-034: 聊天背景动画效果保留

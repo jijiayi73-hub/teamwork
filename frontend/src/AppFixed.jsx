@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   clearLogs,
   createDiary,
@@ -171,6 +171,14 @@ function ChatPage() {
   const fileInputRef = useRef(null);
   const messagesEndRef = useRef(null);
 
+  // TTS state
+  const [ttsWs, setTtsWs] = useState(null);
+  const [ttsPlayingIndex, setTtsPlayingIndex] = useState(null);
+  const [audioContext, setAudioContext] = useState(null);
+  const [ttsSessionActive, setTtsSessionActive] = useState(false);
+  const ttsQueueRef = useRef([]);
+  const isPlayingRef = useRef(false);
+
   async function handleSend() {
     const rawContent = text.trim();
     if (!rawContent || isSending) return;
@@ -233,6 +241,118 @@ function ChatPage() {
     recognition.start();
   }
 
+  // TTS functions
+  const initTTSConnection = useCallback(() => {
+    if (ttsWs) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/api/v1/tts/stream`;
+
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('TTS WebSocket connected');
+      // Start session automatically
+      ws.send(JSON.stringify({ type: 'start', speaker: 'zh_female_qingxin', format: 'pcm', sample_rate: 24000 }));
+    };
+
+    ws.onmessage = async (event) => {
+      if (typeof event.data === 'string') {
+        const message = JSON.parse(event.data);
+        console.log('TTS message:', message);
+
+        if (message.type === 'session_started') {
+          setTtsSessionActive(true);
+        } else if (message.type === 'error') {
+          console.error('TTS error:', message.message);
+          setNote(`语音错误: ${message.message}`);
+          setTtsPlayingIndex(null);
+          setTtsSessionActive(false);
+        } else if (message.type === 'finished' || message.type === 'canceled') {
+          setTtsSessionActive(false);
+          setTtsPlayingIndex(null);
+        }
+      } else if (event.data instanceof ArrayBuffer || event.data instanceof Blob) {
+        // Binary audio data
+        const arrayBuffer = event.data instanceof Blob ? await event.data.arrayBuffer() : event.data;
+
+        // Create AudioContext if needed
+        if (!audioContext) {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+          setAudioContext(ctx);
+        }
+
+        // Decode and play audio
+        try {
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          const source = audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioContext.destination);
+          source.start();
+        } catch (e) {
+          console.error('Audio playback error:', e);
+        }
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('TTS WebSocket error:', error);
+      setNote('语音连接错误');
+    };
+
+    ws.onclose = () => {
+      console.log('TTS WebSocket closed');
+      setTtsSessionActive(false);
+      setTtsWs(null);
+    };
+
+    setTtsWs(ws);
+  }, [ttsWs, audioContext]);
+
+  const handleTTSPlay = useCallback((index) => {
+    const message = messages[index];
+    if (!message || message.role !== 'assistant') return;
+
+    // Toggle off if clicking the same playing message
+    if (ttsPlayingIndex === index) {
+      setTtsPlayingIndex(null);
+      if (ttsWs && ttsSessionActive) {
+        ttsWs.send(JSON.stringify({ type: 'finish' }));
+      }
+      return;
+    }
+
+    // Initialize connection if needed
+    if (!ttsWs) {
+      initTTSConnection();
+    }
+
+    // Set playing index
+    setTtsPlayingIndex(index);
+    setNote('正在朗读...');
+
+    // Send text for TTS
+    if (ttsWs && ttsSessionActive) {
+      ttsWs.send(JSON.stringify({ type: 'text', text: message.content }));
+    } else {
+      // Queue the text if session not ready
+      ttsQueueRef.current = [message.content];
+    }
+  }, [messages, ttsPlayingIndex, ttsWs, ttsSessionActive, initTTSConnection]);
+
+  // Clean up TTS connection on unmount
+  useEffect(() => {
+    return () => {
+      if (ttsWs) {
+        ttsWs.close();
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
+    };
+  }, [ttsWs, audioContext]);
+
   // 自动滚动到底部：当 messages 更新或 AI 正在输入时
   useEffect(() => {
     if (messagesEndRef.current) {
@@ -274,6 +394,7 @@ function ChatPage() {
 
   async function handleGenerateDiary() {
     const transcript = transcriptFromMessages(messages);
+    const userTranscript = transcriptFromUserMessages(messages);
     if (!transcript.trim()) {
       setNote('先写下一点点，或继续回答一个问题。');
       return;
@@ -282,16 +403,18 @@ function ChatPage() {
     try {
       const response = await createEntry(transcript, conversationId);
       const entry = response.data;
+      // 当 AI 生成的日记内容为空或太短时，使用纯用户对话内容（不包含 AI 回复）
+      const fallbackContent = userTranscript.trim() || transcript;
       const draft = {
         entry_id: entry.id,
         conversation_id: conversationId,
         title: entry.draft_title || '今天的温柔记录',
-        content: entry.draft_content || transcript,
+        content: entry.draft_content || fallbackContent,
         raw_content: transcript,
         conversation_messages: messages,
         cover_prompt: buildWatercolorPrompt({
           title: entry.draft_title || '今天的记忆',
-          content: entry.draft_content || transcript,
+          content: entry.draft_content || fallbackContent,
           raw_content: transcript,
           conversation_messages: messages,
           analysis: entry.analysis,
@@ -333,8 +456,20 @@ function ChatPage() {
             {messages.map((message, index) => (
               <div className={`ai-notification ${message.role === 'user' ? 'ai-notification-user' : ''}`} key={`${message.role}-${index}-${message.content}`}>
                 {message.role !== 'user' && <span className="ai-notification-dot" />}
-                <div>
+                <div className="ai-notification-content">
                   <p>{message.content}</p>
+                  {message.role === 'assistant' && (
+                    <button
+                      className={`tts-play-button ${ttsPlayingIndex === index ? 'is-playing' : ''}`}
+                      onClick={() => handleTTSPlay(index)}
+                      type="button"
+                      aria-label="朗读"
+                      title="点击朗读"
+                    >
+                      <span className="tts-icon">♪</span>
+                      <span className="tts-text">{ttsPlayingIndex === index ? '停止' : '朗读'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -1859,6 +1994,15 @@ function writeDraftFromMessages(messages, conversationId) {
 
 function transcriptFromMessages(messages) {
   return (messages || []).map((message) => `${message.role === 'user' ? '我' : 'AI'}：${message.content}`).join('\n');
+}
+
+function transcriptFromUserMessages(messages) {
+  // 只提取用户消息，不包含 AI 回复
+  return (messages || [])
+    .filter((message) => message.role === 'user')
+    .map((message) => message.content)
+    .filter(Boolean)
+    .join('\n');
 }
 
 function buildCoverPrompt(draft, emotion) {
