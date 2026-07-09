@@ -1,5 +1,9 @@
+from __future__ import annotations
+
 import json
 from typing import TYPE_CHECKING, Literal
+
+from ..utils.emotions import normalize_emotion_label
 
 if TYPE_CHECKING:
     from sqlalchemy.orm import Session
@@ -28,8 +32,8 @@ EMOTION_ANALYSIS_SYSTEM_PROMPT = """你是 Inner Garden 的对话结构化分析
 
 请严格返回以下 JSON 格式（不要添加任何其他文字）：
 {
-  "primary_emotion": "joy|sadness|anxiety|calm|neutral",
-  "secondary_emotions": ["emotion1", "emotion2"],
+  "primary_emotion": "开心|平静|焦虑|难过|疲惫|怀念|中性",
+  "secondary_emotions": ["开心|平静|焦虑|难过|疲惫|怀念|中性"],
   "emotion_score": 20-85,
   "valence": -0.5 到 0.5,
   "arousal": 0.0 到 1.0,
@@ -103,15 +107,15 @@ def analyze_text(raw_content: str) -> dict:
     negative_hits = sum(word in raw_content for word in NEGATIVE_WORDS)
     positive_hits = sum(word in raw_content for word in POSITIVE_WORDS)
     if negative_hits > positive_hits:
-        primary_emotion = "anxiety" if "焦虑" in raw_content or "压力" in raw_content else "sadness"
+        primary_emotion = "焦虑" if "焦虑" in raw_content or "压力" in raw_content else "难过"
         score = max(20, 50 - negative_hits * 10)
         valence = -0.4
     elif positive_hits > negative_hits:
-        primary_emotion = "joy" if "开心" in raw_content else "calm"
+        primary_emotion = "开心" if "开心" in raw_content else "平静"
         score = min(85, 55 + positive_hits * 10)
         valence = 0.5
     else:
-        primary_emotion = "neutral"
+        primary_emotion = "中性"
         score = 50
         valence = 0.0
 
@@ -225,6 +229,12 @@ def analyze_text_with_llm(
             result["secondary_emotions"] = result.get("secondary_emotions", [])
             if not isinstance(result["secondary_emotions"], list):
                 result["secondary_emotions"] = []
+            result["primary_emotion"] = normalize_emotion_label(result.get("primary_emotion"))
+            result["secondary_emotions"] = [
+                normalize_emotion_label(emotion)
+                for emotion in result["secondary_emotions"]
+                if normalize_emotion_label(emotion) != "中性"
+            ]
 
             # 生成 title（如果 LLM 没有提供）
             if "title" not in result:
@@ -252,7 +262,7 @@ def analyze_text_with_llm(
 def _get_default_value(field: str) -> any:
     """获取字段的默认值。"""
     defaults = {
-        "primary_emotion": "neutral",
+        "primary_emotion": "中性",
         "secondary_emotions": [],
         "emotion_score": 50,
         "valence": 0.0,
@@ -271,13 +281,15 @@ def _get_default_value(field: str) -> any:
 def _generate_title_from_emotion(emotion: str) -> str:
     """根据情绪生成文艺风格的标题。"""
     titles = {
-        "joy": "微光点亮的日子",
-        "sadness": "雨后才有彩虹",
-        "anxiety": "翻涌过后是平静",
-        "calm": "内心的宁静港湾",
-        "neutral": "平凡中的诗意",
+        "开心": "微光点亮的日子",
+        "难过": "雨后才有彩虹",
+        "焦虑": "翻涌过后是平静",
+        "平静": "内心的宁静港湾",
+        "疲惫": "灯火慢慢归处",
+        "怀念": "旧时光里的风",
+        "中性": "平凡中的诗意",
     }
-    return titles.get(emotion, "亦言亦思皆为序章")
+    return titles.get(normalize_emotion_label(emotion), "亦言亦思皆为序章")
 
 
 def _extract_user_content_from_conversation(conversation_messages: list[dict] | None, raw_content: str) -> str:

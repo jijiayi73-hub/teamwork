@@ -1,5 +1,161 @@
 # Inner Garden Task Board
 
+## 2026-07-10 Task Update: TASK-046 图片加载 CORS 问题修复
+
+### TASK-046: Chat-AI 图片上传后背景图不更新、封面图显示时有时无
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+修复 VPS 生产环境中 Chat-AI 图片上传后背景图不更新、Memory Garden 封面图显示时有时无的问题。
+
+#### 根本原因
+`ParticleWaveHero` 组件设置了 `image.crossOrigin = 'anonymous'`，要求服务器返回 CORS headers。但：
+1. FastAPI 的 `StaticFiles` 挂载点不经过 CORS 中间件
+2. nginx 代理的 `/uploads/` 没有配置 CORS headers
+3. 导致浏览器拒绝加载图片
+
+#### 实现内容
+移除 `frontend/src/components/ParticleWaveHero.jsx` 中的 `image.crossOrigin = 'anonymous'` 设置，因为图片是从同源加载的，不需要跨域访问。
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# ✓ built in 4.07s
+```
+
+#### VPS 部署步骤
+1. 同步代码到 VPS
+2. 重建前端容器：`docker compose -f docker-compose.prod.yml build frontend`
+3. 重启前端容器：`docker compose -f docker-compose.prod.yml up -d frontend`
+4. 验证图片上传和显示功能
+
+#### 预期行为
+- Chat-AI 界面上传图片后，背景图立即更新
+- Memory Garden 封面图稳定显示
+- 图片可以正常加载并显示
+
+---
+
+## 2026-07-10 Task Update: TASK-040 情绪中文统一
+
+### TASK-040: Diary 生成与 Memory Garden 情绪中文统一
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+消除 diary 生成和 Memory Garden 中 `sad/sadness/anxious/anxiety/calm/joy/neutral` 等英文和英文变体混用问题，统一对用户展示、筛选和新写入数据的情绪为中文。
+
+#### 实现内容
+1. 新增后端共享情绪归一化工具 `backend/app/utils/emotions.py`，统一输出 `开心`、`平静`、`焦虑`、`难过`、`疲惫`、`怀念`、`中性`。
+2. 更新 diary 分析 prompt、规则 fallback、LLM 返回解析和标题 fallback，确保新 diary analysis 直接写入中文情绪。
+3. 更新 Memory Garden 创建、更新、列表、详情和筛选逻辑；新卡片存中文，旧英文数据返回时归一化，筛选兼容中文和历史英文 alias。
+4. 更新前端 Diary Result、Memory Garden filter、Memory Detail 和 Monthly Report，所有可见情绪都走中文 label。
+5. 补齐统计、聊天引用、回收站和图片生成 prompt 的情绪归一化，避免次级页面或封面生成链路再次暴露英文枚举。
+
+#### 验证
+```bash
+cd backend
+py -m pytest tests/test_entries.py tests/test_memories.py -q
+# 17 passed
+
+py -c "import json; from app.services.analysis_service import analyze_text; print(json.dumps(analyze_text('明天考试有点焦虑')['primary_emotion'], ensure_ascii=True))"
+# "\u7126\u8651" (焦虑)
+
+cd frontend
+npm.cmd run build
+# passed after sandbox EPERM rerun outside sandbox; Vite chunk-size warning only
+
+ssh vps "cd /opt/inner-garden && docker compose -f docker-compose.prod.yml ps"
+# backend/frontend healthy
+
+ssh vps "curl -fsS https://jijiayi.online/api/v1/health"
+# {"success":true,"data":{"status":"healthy","api_version":"v1"},"message":"ok","request_id":"local"}
+
+ssh vps "cd /opt/inner-garden && docker compose -f docker-compose.prod.yml exec -T backend python - <<'PY'
+import json
+from app.services.analysis_service import analyze_text
+print(json.dumps(analyze_text('明天考试有点焦虑')['primary_emotion'], ensure_ascii=False))
+PY"
+# "焦虑"
+```
+
+#### 相关文件
+- `backend/app/utils/emotions.py`
+- `backend/app/services/analysis_service.py`
+- `backend/app/routers/entries.py`
+- `backend/app/routers/memories.py`
+- `backend/app/routers/stats.py`
+- `backend/app/routers/admin.py`
+- `backend/app/routers/trash.py`
+- `backend/app/services/chat_service.py`
+- `backend/app/services/image_generation_service.py`
+- `backend/app/services/retrieval_service.py`
+- `frontend/src/AppFixed.jsx`
+- `backend/tests/test_entries.py`
+- `backend/tests/test_memories.py`
+- `docs/vibe-logs/log-45-emotion-chinese-normalization.md`
+
+---
+
+## 2026-07-10 Task Update: TASK-039 情绪花园筛选功能修复
+
+### TASK-039: Memory Garden 情绪与关键词筛选修复
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+修复 Memory Garden/情绪花园筛选体验：情绪选择后应立即刷新列表，关键词应能匹配用户在卡片上能看到的标题、正文摘要、会话摘要、封面提示、情绪标签和关键词。
+
+#### 实现内容
+1. 前端 `MemoryGardenPage` 增加情绪选择即时加载、关键词 Enter 筛选和清除筛选按钮。
+2. 后端 `/api/v1/memories` 保持 `emotion` 和 `keyword` 查询参数不变，扩展 `keyword` 匹配范围。
+3. 新增回归测试覆盖标题关键词、摘要关键词与情绪组合筛选。
+4. 修复 Node 契约测试环境中 `import.meta.env` 为空导致的 API client 导入错误。
+5. 排查 VPS 黑屏反馈后，修复前端 Nginx HTML 缓存头：HTML 不缓存，hash 资源继续长期缓存，避免旧 HTML 指向不存在的旧 asset hash。
+
+#### 验证
+```bash
+cd backend
+py -m pytest tests/test_memories.py -q
+# 6 passed
+
+cd frontend
+npm.cmd run test:contract
+# chat adapter contract ok
+# auth invalidation ok
+
+cd frontend
+npm.cmd run build
+# passed after sandbox EPERM rerun outside sandbox; Vite chunk-size warning only
+```
+
+#### 相关文件
+- `backend/app/routers/memories.py`
+- `backend/tests/test_memories.py`
+- `frontend/src/AppFixed.jsx`
+- `frontend/src/api/client.js`
+- `frontend/nginx.conf`
+- `docs/vibe-logs/log-44-memory-garden-filter-fix.md`
+
+---
+
 ## 2026-07-10 Task Update: TASK-038 记忆卡片数据生成
 
 ### TASK-038: 为test1用户生成记忆卡片数据

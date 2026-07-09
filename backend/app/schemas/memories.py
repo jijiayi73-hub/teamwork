@@ -12,7 +12,7 @@ class MemoryCardCreate(BaseModel):
     diary_id: int
     cover_image_url: Optional[str] = Field(default=None, max_length=500)
     cover_prompt: Optional[str] = None
-    emotion_label: str = Field(default="calm", min_length=1, max_length=30)
+    emotion_label: str = Field(default="平静", min_length=1, max_length=30)
     emotion_color: str = Field(default="#8fb8ff", min_length=1, max_length=40)
     keywords: list[str] = Field(default_factory=list)
     conversation_summary: Optional[str] = None

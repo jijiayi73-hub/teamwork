@@ -379,7 +379,10 @@ function getPlaneSize(imageRatio, camera, fit) {
 function loadImage(src) {
   return new Promise((resolve, reject) => {
     const image = new Image();
-    image.crossOrigin = 'anonymous';
+    // Removed crossOrigin = 'anonymous' because:
+    // 1. Images are served from the same origin (via nginx proxy or backend static files)
+    // 2. StaticFiles mount points in FastAPI don't go through CORS middleware
+    // 3. Setting crossOrigin caused image loading failures in production (VPS)
     image.onload = () => resolve(image);
     image.onerror = reject;
     image.src = src;

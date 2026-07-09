@@ -10,6 +10,7 @@ from ..database import get_db
 from ..models import Conversation, Diary, Entry, MemoryCard, User
 from ..schemas.auth import UserRead, UserUpdate
 from ..schemas.common import ApiResponse
+from ..utils.emotions import normalize_emotion_label
 
 router = APIRouter(prefix="/admin", tags=["admin"])
 
@@ -111,7 +112,7 @@ def admin_chart_stats(_: User = Depends(require_admin), db: Session = Depends(ge
 
     seven_days_ago = date.today() - timedelta(days=6)
     memories = db.query(MemoryCard).filter(MemoryCard.deleted_at.is_(None)).all()
-    emotion_counts = Counter(memory.emotion_label for memory in memories)
+    emotion_counts = Counter(normalize_emotion_label(memory.emotion_label) for memory in memories)
     daily_new = []
     for offset in range(6, -1, -1):
         day = date.today() - timedelta(days=offset)

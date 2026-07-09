@@ -25,6 +25,7 @@ from ..schemas.memories import (
     UploadedAssetRead,
 )
 from ..services.chat_service import ChatService
+from ..utils.emotions import normalize_emotion_label
 from .entries import to_analysis_read
 
 router = APIRouter(tags=["memories"])
@@ -50,8 +51,26 @@ def _keywords_from_json(value: str | None) -> list[str]:
     return [str(item) for item in parsed if str(item).strip()]
 
 
+def _memory_matches_keyword(memory: MemoryCard, keyword: str) -> bool:
+    keyword_lower = keyword.strip().lower()
+    if not keyword_lower:
+        return True
+
+    diary = memory.diary
+    searchable_values = [
+        normalize_emotion_label(memory.emotion_label),
+        memory.emotion_label,
+        memory.conversation_summary,
+        memory.cover_prompt,
+        diary.title if diary else "",
+        diary.content if diary else "",
+    ]
+    searchable_values.extend(_keywords_from_json(memory.keywords_json))
+    return any(keyword_lower in str(value).lower() for value in searchable_values if value)
+
+
 def _default_cover_prompt(diary: Diary) -> str:
-    emotion = diary.analysis.primary_emotion if diary.analysis else "calm"
+    emotion = normalize_emotion_label(diary.analysis.primary_emotion if diary.analysis else None, default="平静")
     return (
         f"Soft therapeutic watercolor memory card cover for a diary titled "
         f"{diary.title!r}, main emotion {emotion}, gentle garden light."
@@ -68,7 +87,7 @@ def _to_memory_read(memory: MemoryCard) -> MemoryCardRead:
         diary_date=diary.diary_date,
         cover_image_url=memory.cover_image_url,
         cover_prompt=memory.cover_prompt,
-        emotion_label=memory.emotion_label,
+        emotion_label=normalize_emotion_label(memory.emotion_label),
         emotion_color=memory.emotion_color,
         keywords=_keywords_from_json(memory.keywords_json),
         conversation_summary=memory.conversation_summary,
@@ -171,7 +190,7 @@ def create_memory(payload: MemoryCardCreate, user: User = Depends(get_current_us
         diary_id=diary.id,
         cover_image_url=payload.cover_image_url,
         cover_prompt=payload.cover_prompt or _default_cover_prompt(diary),
-        emotion_label=payload.emotion_label,
+        emotion_label=normalize_emotion_label(payload.emotion_label),
         emotion_color=payload.emotion_color,
         keywords_json=_keywords_to_json(payload.keywords),
         conversation_summary=payload.conversation_summary,
@@ -190,16 +209,15 @@ def list_memories(
     db: Session = Depends(get_db),
 ):
     query = db.query(MemoryCard).filter(MemoryCard.user_id == user.id, MemoryCard.deleted_at.is_(None))
-    if emotion:
-        query = query.filter(MemoryCard.emotion_label == emotion)
     memories = query.order_by(MemoryCard.created_at.desc(), MemoryCard.id.desc()).all()
-    if keyword:
-        keyword_lower = keyword.lower()
+    if emotion:
+        target_emotion = normalize_emotion_label(emotion)
         memories = [
-            memory
-            for memory in memories
-            if any(keyword_lower in item.lower() for item in _keywords_from_json(memory.keywords_json))
+            memory for memory in memories
+            if normalize_emotion_label(memory.emotion_label) == target_emotion
         ]
+    if keyword:
+        memories = [memory for memory in memories if _memory_matches_keyword(memory, keyword)]
     return ApiResponse(data=[_to_memory_read(memory) for memory in memories])
 
 
@@ -225,6 +243,8 @@ def update_memory(
     update = payload.model_dump(exclude_unset=True)
     if "keywords" in update:
         memory.keywords_json = _keywords_to_json(update.pop("keywords") or [])
+    if "emotion_label" in update and update["emotion_label"] is not None:
+        update["emotion_label"] = normalize_emotion_label(update["emotion_label"])
     for field, value in update.items():
         setattr(memory, field, value)
     db.commit()

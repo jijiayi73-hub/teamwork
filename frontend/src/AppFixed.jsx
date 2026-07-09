@@ -31,15 +31,82 @@ import LoginPage from './components/LoginPage';
 const ParticleWaveHero = lazy(() => import('./components/ParticleWaveHero'));
 
 const DRAFT_KEY = 'mindful_memory_diary_draft';
-const EMOTIONS = ['calm', 'joy', 'sadness', 'anxiety', 'tired', 'neutral'];
+const EMOTIONS = ['开心', '平静', '焦虑', '难过', '疲惫', '怀念', '中性'];
 // 情绪到颜色的固定映射（一个情绪对应一个颜色）
 const EMOTION_COLOR_MAP = {
+  开心: '#b8e6d0',
+  平静: '#8fb8ff',
+  焦虑: '#f5b6d3',
+  难过: '#ffd6a5',
+  疲惫: '#c8b6ff',
+  怀念: '#d9c78f',
+  中性: '#d8dee9',
   calm: '#8fb8ff',
   joy: '#b8e6d0',
   sadness: '#ffd6a5',
   anxiety: '#f5b6d3',
   tired: '#c8b6ff',
   neutral: '#d8dee9',
+};
+const EMOTION_LABEL_ALIASES = {
+  joy: '开心',
+  happy: '开心',
+  happiness: '开心',
+  joyful: '开心',
+  grateful: '开心',
+  gratitude: '开心',
+  开心: '开心',
+  快乐: '开心',
+  喜悦: '开心',
+  愉快: '开心',
+  calm: '平静',
+  peace: '平静',
+  peaceful: '平静',
+  relieved: '平静',
+  relief: '平静',
+  平静: '平静',
+  安定: '平静',
+  安宁: '平静',
+  放松: '平静',
+  anxiety: '焦虑',
+  anxious: '焦虑',
+  worry: '焦虑',
+  worried: '焦虑',
+  fear: '焦虑',
+  stress: '焦虑',
+  stressed: '焦虑',
+  焦虑: '焦虑',
+  紧张: '焦虑',
+  担心: '焦虑',
+  担忧: '焦虑',
+  压力: '焦虑',
+  sad: '难过',
+  sadness: '难过',
+  melancholy: '难过',
+  down: '难过',
+  low: '难过',
+  难过: '难过',
+  伤心: '难过',
+  低落: '难过',
+  沮丧: '难过',
+  tired: '疲惫',
+  fatigue: '疲惫',
+  exhausted: '疲惫',
+  weary: '疲惫',
+  疲惫: '疲惫',
+  疲劳: '疲惫',
+  累: '疲惫',
+  nostalgia: '怀念',
+  nostalgic: '怀念',
+  missing: '怀念',
+  miss: '怀念',
+  怀念: '怀念',
+  想念: '怀念',
+  neutral: '中性',
+  unknown: '中性',
+  中性: '中性',
+  普通: '中性',
+  未知: '中性',
 };
 export default function App() {
   const route = useHashRoute();
@@ -550,7 +617,7 @@ function DiaryResultPage() {
   const [title, setTitle] = useState(draft?.title || '');
   const [content, setContent] = useState(draft?.content || '');
   // 情绪和颜色由 AI 分析固定，不可编辑
-  const emotion = draft?.analysis?.primary_emotion || 'calm';
+  const emotion = normalizeEmotionLabel(draft?.analysis?.primary_emotion, '平静');
   const emotionColor = getEmotionColor(emotion);
   const [coverImageUrl, setCoverImageUrl] = useState(draft?.cover_image_url || '');
   const [keywords, setKeywords] = useState(extractKeywords(draft));
@@ -789,6 +856,24 @@ function MemoryGardenPage() {
     loadGarden({ emotion: '', keyword: '' });
   }, []);
 
+  function handleEmotionChange(event) {
+    const nextEmotion = event.target.value;
+    setEmotion(nextEmotion);
+    loadGarden({ emotion: nextEmotion, keyword });
+  }
+
+  function handleKeywordKeyDown(event) {
+    if (event.key === 'Enter') {
+      loadGarden({ emotion, keyword });
+    }
+  }
+
+  function clearFilters() {
+    setEmotion('');
+    setKeyword('');
+    loadGarden({ emotion: '', keyword: '' });
+  }
+
   async function handleDelete(memoryId) {
     try {
       await deleteMemory(memoryId);
@@ -811,12 +896,13 @@ function MemoryGardenPage() {
           <p className="memory-garden-total"><span>记忆总数</span><span aria-hidden="true">·</span><strong>{memories.length}</strong></p>
         </header>
         <div className="garden-filter-row">
-          <select className="input-surface" onChange={(event) => setEmotion(event.target.value)} value={emotion}>
+          <select className="input-surface" onChange={handleEmotionChange} value={emotion}>
             <option value="">全部情绪</option>
             {EMOTIONS.map((item) => <option key={item} value={item}>{item}</option>)}
           </select>
-          <input className="input-surface" onChange={(event) => setKeyword(event.target.value)} placeholder="按关键词筛选" value={keyword} />
+          <input className="input-surface" onChange={(event) => setKeyword(event.target.value)} onKeyDown={handleKeywordKeyDown} placeholder="按关键词筛选" value={keyword} />
           <button className="secondary-action" onClick={() => loadGarden()} type="button">筛选</button>
+          {(emotion || keyword) && <button className="secondary-action" onClick={clearFilters} type="button">清除</button>}
         </div>
         <section className="memory-garden-list" aria-label="Memory Garden memory list">
           {memories.length === 0 ? (
@@ -894,8 +980,8 @@ function MemoryDetailPage({ memoryId }) {
             <p className="mt-6 whitespace-pre-wrap text-base leading-8 text-white/76">{memory.diary.content}</p>
           </article>
           <aside className="panel space-y-5">
-            <p className="text-sm text-white/64">Emotion</p>
-            <p className="font-display text-4xl" style={{ color: memory.emotion_color }}>{memory.emotion_label}</p>
+            <p className="text-sm text-white/64">情绪</p>
+            <p className="font-display text-4xl" style={{ color: memory.emotion_color }}>{getEmotionLabel(memory.emotion_label)}</p>
             <div className="keyword-row">{memory.keywords.map((item) => <span key={item}>{item}</span>)}</div>
             <div className="past-self-box">
               {pastSelfMessages.map((message, index) => (
@@ -1669,16 +1755,16 @@ function MonthlyReport() {
   }
 
   function getDiaryEmotion(memory) {
-    return memory.emotion_label || memory.diary?.analysis?.primary_emotion || 'calm';
+    return normalizeEmotionLabel(memory.emotion_label || memory.diary?.analysis?.primary_emotion, '平静');
   }
 
   function getMoodEmoji(memory) {
-    const emotion = String(getDiaryEmotion(memory)).trim().toLowerCase();
-    if (['joy', 'happy', 'happiness', '开心', '快乐'].includes(emotion)) return '☀';
-    if (['calm', 'peaceful', 'peace', '平静', '安定'].includes(emotion)) return '○';
-    if (['nostalgia', 'missing', 'miss', '怀念', '想念'].includes(emotion)) return '◇';
-    if (['anxiety', 'anxious', 'fear', '焦虑', '紧张'].includes(emotion)) return '△';
-    if (['sad', 'sadness', '难过', '伤心', '低落'].includes(emotion)) return '◌';
+    const emotion = getDiaryEmotion(memory);
+    if (emotion === '开心') return '☀';
+    if (emotion === '平静') return '○';
+    if (emotion === '怀念') return '◇';
+    if (emotion === '焦虑') return '△';
+    if (emotion === '难过') return '◌';
     return '✦';
   }
 
@@ -1687,25 +1773,11 @@ function MonthlyReport() {
   }
 
   function getMonthlyEmotionKey(memory) {
-    const emotion = String(getDiaryEmotion(memory)).trim().toLowerCase();
-    if (['joy', 'happy', 'happiness', '开心', '快乐'].includes(emotion)) return 'joy';
-    if (['calm', 'peaceful', 'peace', '平静', '安定'].includes(emotion)) return 'calm';
-    if (['sad', 'sadness', '难过', '伤心', '低落'].includes(emotion)) return 'sadness';
-    if (['anxiety', 'anxious', 'fear', '焦虑', '紧张'].includes(emotion)) return 'anxiety';
-    if (['tired', 'fatigue', 'exhausted', '疲惫', '疲劳'].includes(emotion)) return 'tired';
-    return EMOTION_COLOR_MAP[emotion] ? emotion : 'neutral';
+    return normalizeEmotionLabel(getDiaryEmotion(memory), '中性');
   }
 
   function getMonthlyEmotionLabel(emotionKey) {
-    const labels = {
-      anxiety: '焦虑',
-      calm: '平静',
-      joy: '开心',
-      neutral: '中性',
-      sadness: '难过',
-      tired: '疲惫',
-    };
-    return labels[emotionKey] || '未知';
+    return normalizeEmotionLabel(emotionKey, '中性');
   }
 
   function getDiarySummary(memory) {
@@ -1777,7 +1849,7 @@ function MonthlyReport() {
   const monthlyEntries = useMemo(() => Object.values(diaryIndex), [diaryIndex]);
   const monthlyStats = useMemo(() => {
     const counts = monthlyEntries.reduce((result, entry) => {
-      const emotionKey = entry.emotionKey || 'neutral';
+      const emotionKey = normalizeEmotionLabel(entry.emotionKey, '中性');
       result[emotionKey] = (result[emotionKey] || 0) + 1;
       return result;
     }, {});
@@ -1994,7 +2066,7 @@ function writeDraftFromMessages(messages, conversationId) {
     conversation_messages: messages,
     cover_prompt: buildWatercolorPrompt({ title: 'AI 对话记录', raw_content: transcript, conversation_messages: messages }),
     cover_image_url: '',
-    analysis: { primary_emotion: 'calm', summary: '来自 AI 对话的记录', suggestion: '可以继续补充，或整理成日记。' },
+    analysis: { primary_emotion: '平静', summary: '来自 AI 对话的记录', suggestion: '可以继续补充，或整理成日记。' },
   }));
 }
 
@@ -2013,12 +2085,12 @@ function transcriptFromUserMessages(messages) {
 
 function buildCoverPrompt(draft, emotion) {
   const title = draft?.title || 'today memory';
-  return `Soft watercolor garden cover, title "${title}", emotion ${emotion}, quiet light, no text.`;
+  return `Soft watercolor garden cover, title "${title}", emotion ${normalizeEmotionLabel(emotion)}, quiet light, no text.`;
 }
 
 function extractKeywords(draft) {
-  const emotion = draft?.analysis?.primary_emotion || 'calm';
-  return Array.from(new Set([emotion, 'today', 'memory'])).slice(0, 6);
+  const emotion = normalizeEmotionLabel(draft?.analysis?.primary_emotion, '平静');
+  return Array.from(new Set([emotion, '今天', '记忆'])).slice(0, 6);
 }
 
 function splitKeywords(value) {
@@ -2054,7 +2126,8 @@ function readJson(key) {
  * @returns {string} 对应的颜色值
  */
 function getEmotionColor(emotion) {
-  return EMOTION_COLOR_MAP[emotion] || EMOTION_COLOR_MAP.neutral;
+  const label = normalizeEmotionLabel(emotion);
+  return EMOTION_COLOR_MAP[label] || EMOTION_COLOR_MAP['中性'];
 }
 
 /**
@@ -2063,15 +2136,14 @@ function getEmotionColor(emotion) {
  * @returns {string} 中文情绪名称
  */
 function getEmotionLabel(emotion) {
-  const labels = {
-    calm: '平静',
-    joy: '开心',
-    sadness: '难过',
-    anxiety: '焦虑',
-    tired: '疲惫',
-    neutral: '中性',
-  };
-  return labels[emotion] || '未知';
+  return normalizeEmotionLabel(emotion, '中性');
+}
+
+function normalizeEmotionLabel(emotion, fallback = '中性') {
+  if (!emotion) return fallback;
+  const raw = String(emotion).trim();
+  if (!raw) return fallback;
+  return EMOTION_LABEL_ALIASES[raw.toLowerCase()] || EMOTION_LABEL_ALIASES[raw] || (EMOTIONS.includes(raw) ? raw : fallback);
 }
 
 function particleStyle(index) {
@@ -2088,7 +2160,14 @@ function particleStyle(index) {
 // ============================================================================
 
 function getCoverPalette(emotion) {
+  const label = normalizeEmotionLabel(emotion, '平静');
   const palettes = {
+    开心: ['#d9c78f', '#e9b7ba', '#7da997', '#f6e6ae'],
+    焦虑: ['#8aa5b7', '#b7c7b4', '#6f8791', '#dce7df'],
+    难过: ['#778aa5', '#a9a3be', '#5e718f', '#d8deea'],
+    疲惫: ['#7b89a6', '#a69fbe', '#627b85', '#e1d7e8'],
+    怀念: ['#b7a990', '#8ea4a1', '#e1d6c5', '#6f7d8f'],
+    平静: ['#8ab7b0', '#a4b79c', '#5e7c8d', '#d8eadf'],
     joy: ['#d9c78f', '#e9b7ba', '#7da997', '#f6e6ae'],
     anxiety: ['#8aa5b7', '#b7c7b4', '#6f8791', '#dce7df'],
     sadness: ['#778aa5', '#a9a3be', '#5e718f', '#d8deea'],
@@ -2096,12 +2175,12 @@ function getCoverPalette(emotion) {
     relieved: ['#9fbea4', '#eadfb8', '#83a99f', '#f4eed6'],
     calm: ['#8ab7b0', '#a4b79c', '#5e7c8d', '#d8eadf'],
   };
-  return palettes[emotion] || palettes.calm;
+  return palettes[label] || palettes['平静'];
 }
 
 function buildWatercolorPrompt(diary) {
   const title = diary?.title || 'Inner Garden memory card';
-  const emotion = diary?.emotion || diary?.analysis?.primary_emotion || 'calm';
+  const emotion = normalizeEmotionLabel(diary?.emotion || diary?.analysis?.primary_emotion, '平静');
   const sourceText = [
     diary?.content,
     diary?.raw_content,
@@ -2126,7 +2205,7 @@ function escapeXml(value) {
 }
 
 function generateFallbackCover(diary) {
-  const emotion = diary?.emotion || diary?.analysis?.primary_emotion || 'calm';
+  const emotion = normalizeEmotionLabel(diary?.emotion || diary?.analysis?.primary_emotion, '平静');
   const palette = getCoverPalette(emotion);
   const flowers = Array.from({ length: 16 }, (_, index) => {
     const x = 100 + ((index * 73) % 720);
@@ -2170,7 +2249,15 @@ async function completeDraftCover(draft) {
 }
 
 function buildCardQuote(emotion) {
+  const label = normalizeEmotionLabel(emotion, '平静');
   const quotes = {
+    开心: '有一点光，已经在今天开花。',
+    焦虑: '不安也可以被温柔地放下。',
+    难过: '低落的时刻，也值得被轻轻保存。',
+    疲惫: '辛苦的一天，先在这里停一停。',
+    怀念: '想起的时光，也可以温柔安放。',
+    平静: '今天被安静地保存下来。',
+    中性: '平凡的一页，也有自己的光。',
     joy: '有一点光，已经在今天开花。',
     anxiety: '不安也可以被温柔地放下。',
     sadness: '低落的时刻，也值得被轻轻保存。',
@@ -2178,7 +2265,7 @@ function buildCardQuote(emotion) {
     relieved: '松开的那一刻，也是一种抵达。',
     calm: '今天被安静地保存下来。',
   };
-  return quotes[emotion] || quotes.calm;
+  return quotes[label] || quotes['平静'];
 }
 
 // ============================================================================

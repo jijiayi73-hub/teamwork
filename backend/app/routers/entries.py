@@ -11,6 +11,7 @@ from ..models import EmotionAnalysis, Entry, User
 from ..schemas.common import ApiResponse
 from ..schemas.entries import AnalysisRead, EntryCreate, EntryRead
 from ..services.analysis_service import analyze_text, analyze_text_with_llm
+from ..utils.emotions import normalize_emotion_label
 
 router = APIRouter(prefix="/entries", tags=["entries"])
 
@@ -59,8 +60,11 @@ def _get_conversation_messages(db: Session, conversation_id: int, user_id: int) 
 def to_analysis_read(analysis: EmotionAnalysis) -> AnalysisRead:
     return AnalysisRead(
         id=analysis.id,
-        primary_emotion=analysis.primary_emotion,
-        secondary_emotions=json.loads(analysis.secondary_emotions or "[]"),
+        primary_emotion=normalize_emotion_label(analysis.primary_emotion),
+        secondary_emotions=[
+            normalize_emotion_label(emotion)
+            for emotion in json.loads(analysis.secondary_emotions or "[]")
+        ],
         emotion_score=analysis.emotion_score,
         valence=analysis.valence,
         arousal=analysis.arousal,

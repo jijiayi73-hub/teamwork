@@ -16,6 +16,7 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from ..models.chat import Conversation, Message, MessageSource
+from ..utils.emotions import normalize_emotion_label
 from ..models.diary import Diary
 from ..schemas.chat import (
     ChatRequest,
@@ -607,7 +608,7 @@ class ChatService:
         context_parts = []
         for retrieved in retrieved_diaries:
             diary = retrieved.diary
-            emotion = diary.analysis.primary_emotion if diary.analysis else "未知"
+            emotion = normalize_emotion_label(diary.analysis.primary_emotion if diary.analysis else None)
             context_parts.append(
                 f"日期：{diary.diary_date}\n"
                 f"标题：{diary.title}\n"
@@ -626,7 +627,7 @@ class ChatService:
         rank: int,
     ) -> None:
         """Create message source with snapshot fields."""
-        emotion = diary.analysis.primary_emotion if diary.analysis else "未知"
+        emotion = normalize_emotion_label(diary.analysis.primary_emotion if diary.analysis else None)
         source = MessageSource(
             message_id=message_id,
             diary_id=diary.id,
@@ -669,7 +670,7 @@ class ChatService:
         # Build sources list
         sources = []
         for retrieved in retrieved_diaries:
-            emotion = retrieved.diary.analysis.primary_emotion if retrieved.diary.analysis else "未知"
+            emotion = normalize_emotion_label(retrieved.diary.analysis.primary_emotion if retrieved.diary.analysis else None)
             sources.append(
                 MessageSourceSchema(
                     diary_id=retrieved.diary.id,

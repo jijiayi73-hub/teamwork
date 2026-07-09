@@ -18,6 +18,7 @@ from typing import Literal
 from sqlalchemy.orm import Session
 
 from ..models.diary import Diary, EmotionAnalysis
+from ..utils.emotions import normalize_emotion_label
 
 
 # ============================================================================
@@ -147,12 +148,14 @@ class KeywordEmotionTimeStrategy(RetrievalStrategy):
         """Score based on emotion relevance."""
         # Emotion-related keywords mapping
         emotion_keywords = {
-            "anxiety": ["焦虑", "担心", "紧张", "不安", "anxiety", "worry", "nervous"],
-            "sadness": ["难过", "伤心", "悲伤", "抑郁", "sad", "depressed", "upset"],
+            "焦虑": [
+                "焦虑", "担心", "紧张", "不安", "压力",
+                "anxiety", "anxious", "worry", "nervous", "stress", "stressed", "overwhelmed",
+            ],
+            "难过": ["难过", "伤心", "悲伤", "抑郁", "sad", "sadness", "depressed", "upset"],
             "anger": ["生气", "愤怒", "恼火", "angry", "mad", "furious"],
-            "joy": ["开心", "快乐", "高兴", "joy", "happy", "excited"],
-            "calm": ["平静", "放松", "轻松", "calm", "relaxed", "peaceful"],
-            "stress": ["压力", "紧张", "stress", "stressed", "overwhelmed"],
+            "开心": ["开心", "快乐", "高兴", "joy", "happy", "excited"],
+            "平静": ["平静", "放松", "轻松", "calm", "relaxed", "peaceful"],
         }
 
         query_emotions = set()
@@ -166,7 +169,7 @@ class KeywordEmotionTimeStrategy(RetrievalStrategy):
         if not diary.analysis:
             return 0.3  # No analysis data
 
-        primary_emotion = diary.analysis.primary_emotion.lower()
+        primary_emotion = normalize_emotion_label(diary.analysis.primary_emotion)
         if primary_emotion in query_emotions:
             return 1.0
         return 0.3

@@ -1,7 +1,7 @@
 import { getStoredToken, invalidateSession, isAuthenticated } from './auth.js';
 
 // Use API_BASE from environment variable or fallback to relative path
-const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
+const API_BASE = import.meta.env?.VITE_API_BASE_URL || '/api/v1';
 
 // 认证相关函数已迁移到 auth.js 模块
 export { getStoredToken, isAuthenticated } from './auth.js';

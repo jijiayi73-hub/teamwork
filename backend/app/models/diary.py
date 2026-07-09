@@ -118,7 +118,7 @@ class MemoryCard(Base):
     diary_id: Mapped[int] = mapped_column(ForeignKey("diaries.id"), unique=True, index=True)
     cover_image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
     cover_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
-    emotion_label: Mapped[str] = mapped_column(String(30), default="calm")
+    emotion_label: Mapped[str] = mapped_column(String(30), default="平静")
     emotion_color: Mapped[str] = mapped_column(String(40), default="#8fb8ff")
     keywords_json: Mapped[str] = mapped_column(Text, default="[]")
     conversation_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)

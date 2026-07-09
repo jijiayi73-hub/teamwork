@@ -1,5 +1,92 @@
 # Inner Garden Current Status
 
+## 2026-07-10 Update: TASK-046 图片加载 CORS 问题修复
+
+修复 VPS 生产环境中 Chat-AI 图片上传后背景图不更新、Memory Garden 封面图显示时有时无的问题。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 根本原因定位 | Identified | `ParticleWaveHero` 设置 `crossOrigin='anonymous'`，但 StaticFiles 不返回 CORS headers |
+| 修复方案 | Implemented | 移除 `image.crossOrigin = 'anonymous'` 设置 |
+| 前端构建 | Passing | `npm run build` → ✓ built in 4.07s |
+| VPS 部署 | Pending | 需要同步代码并重建前端容器 |
+
+**Changes:**
+- `frontend/src/components/ParticleWaveHero.jsx` - 移除 `crossOrigin` 设置
+
+**Expected behavior:**
+- Chat-AI 界面上传图片后，背景图立即更新
+- Memory Garden 封面图稳定显示
+- 图片可以正常加载并显示
+
+**VPS 部署步骤:**
+1. 同步代码到 VPS
+2. 重建前端容器：`docker compose -f docker-compose.prod.yml build frontend`
+3. 重启前端容器：`docker compose -f docker-compose.prod.yml up -d frontend`
+4. 验证图片上传和显示功能
+
+---
+
+## 2026-07-10 Update: TASK-040 情绪中文统一
+
+Diary 生成和 Memory Garden 情绪值已统一为中文 canonical labels：`开心`、`平静`、`焦虑`、`难过`、`疲惫`、`怀念`、`中性`。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Diary 生成 | Fixed | `analysis_service` prompt/fallback/LLM parse result now normalizes `primary_emotion` and `secondary_emotions` to Chinese labels |
+| Memory Garden 写入/读取 | Fixed | `create_memory`, `update_memory`, `_to_memory_read` normalize `emotion_label` before storage/response |
+| Memory Garden 筛选 | Fixed | `/api/v1/memories?emotion=` accepts Chinese labels and legacy English aliases such as `calm`, `joy`, `anxiety`, `sadness` |
+| 前端展示 | Fixed | Diary Result badge, Memory Garden filter options, Memory Detail emotion, Monthly Report emotion keys now render Chinese labels |
+| 兼容旧数据 | Preserved | Shared backend/frontend alias maps normalize `sad/sadness/anxious/anxiety/calm/joy/neutral` to Chinese |
+| 本地验证 | Passing | `py -m pytest tests/test_entries.py tests/test_memories.py -q` -> 17 passed; `npm.cmd run build` -> passed |
+| VPS 同步 | Passing | Rebuilt and restarted backend/frontend on `/opt/inner-garden`; containers healthy; public `https://jijiayi.online/api/v1/health` returns healthy; production fallback emits `"焦虑"` |
+
+**Changes:**
+- `backend/app/utils/emotions.py`
+- `backend/app/services/analysis_service.py`
+- `backend/app/routers/entries.py`
+- `backend/app/routers/memories.py`
+- `backend/app/routers/stats.py`
+- `backend/app/routers/admin.py`
+- `backend/app/routers/trash.py`
+- `backend/app/services/chat_service.py`
+- `backend/app/services/image_generation_service.py`
+- `backend/app/services/retrieval_service.py`
+- `frontend/src/AppFixed.jsx`
+
+**Documentation:**
+- `docs/state/task-board.md`
+- `docs/vibe-logs/log-45-emotion-chinese-normalization.md`
+
+---
+
+## 2026-07-10 Update: TASK-039 情绪花园筛选功能修复
+
+Memory Garden/情绪花园筛选已修复并完成本地验证，待同步到 VPS。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 前端筛选交互 | Fixed | `frontend/src/AppFixed.jsx` 情绪选择立即加载，关键词支持 Enter 筛选，并提供清除筛选 |
+| 后端关键词匹配 | Fixed | `backend/app/routers/memories.py` 的 `keyword` 现在匹配关键词、标题、正文、会话摘要、封面提示和情绪标签 |
+| API 契约 | Stable | `/api/v1/memories` 查询参数仍为 `emotion` 和 `keyword`，未新增响应字段或状态码 |
+| 回归测试 | Passing | `py -m pytest tests/test_memories.py -q` -> 6 passed |
+| 前端契约 | Passing | `npm.cmd run test:contract` -> chat adapter contract ok; auth invalidation ok |
+| 前端构建 | Passing | `npm.cmd run build` -> built in 4.31s after sandbox EPERM rerun outside sandbox |
+| VPS 黑屏缓存风险 | Fixed | `frontend/nginx.conf` now sends `Cache-Control: no-store, no-cache` for HTML while keeping hashed assets immutable |
+
+**Changes:**
+- `backend/app/routers/memories.py`
+- `backend/tests/test_memories.py`
+- `frontend/src/AppFixed.jsx`
+- `frontend/src/api/client.js`
+- `frontend/nginx.conf`
+
+**Documentation:**
+- `docs/state/task-board.md`
+- `docs/vibe-logs/log-44-memory-garden-filter-fix.md`
+
+---
+
 ## 2026-07-10 Update: TASK-037 AI朗读功能（火山引擎豆包TTS）
 
 实现AI文本朗读功能，在每个AI生成的文本气泡后添加朗读按钮，点击后调用火山引擎豆包TTS API朗读内容。

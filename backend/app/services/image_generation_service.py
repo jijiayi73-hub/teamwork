@@ -155,7 +155,17 @@ class ImageGenerationService:
         """
         # Add watercolor/therapeutic style prefix for emotional context
         if emotion:
+            from ..utils.emotions import normalize_emotion_label
+
+            emotion_label = normalize_emotion_label(emotion)
             emotion_guidance = {
+                "平静": "Soft, peaceful watercolor style with gentle blues and greens",
+                "开心": "Bright, warm watercolor style with vibrant yellows and oranges",
+                "难过": "Muted, melancholic watercolor style with soft grays and purples",
+                "焦虑": "Turbulent but controlled watercolor style with swirling patterns",
+                "疲惫": "Quiet, restorative watercolor style with soft lavender and blue-gray",
+                "怀念": "Nostalgic watercolor style with warm amber light and soft greens",
+                "中性": "Balanced, serene watercolor style",
                 "calm": "Soft, peaceful watercolor style with gentle blues and greens",
                 "joy": "Bright, warm watercolor style with vibrant yellows and oranges",
                 "sadness": "Muted, melancholic watercolor style with soft grays and purples",
@@ -164,7 +174,7 @@ class ImageGenerationService:
                 "fear": "Dark, moody watercolor style with shadows and contrast",
                 "neutral": "Balanced, serene watercolor style",
             }
-            style_prefix = emotion_guidance.get(emotion.lower(), "Therapeutic watercolor style")
+            style_prefix = emotion_guidance.get(emotion_label, emotion_guidance.get(emotion.lower(), "Therapeutic watercolor style"))
             return f"{style_prefix}: {base_prompt}"
 
         return f"Soft therapeutic watercolor style: {base_prompt}"

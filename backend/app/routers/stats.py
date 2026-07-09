@@ -9,6 +9,7 @@ from ..auth.dependencies import get_current_user
 from ..database import get_db
 from ..models import Diary, User
 from ..schemas.common import ApiResponse
+from ..utils.emotions import normalize_emotion_label
 
 router = APIRouter(prefix="/stats", tags=["stats"])
 
@@ -38,7 +39,7 @@ def emotion_trend(user: User = Depends(get_current_user), db: Session = Depends(
             {
                 "date": diary.diary_date.isoformat(),
                 "emotion_score": diary.analysis.emotion_score if diary.analysis else 0,
-                "primary_emotion": diary.analysis.primary_emotion if diary.analysis else "未知",
+                "primary_emotion": normalize_emotion_label(diary.analysis.primary_emotion if diary.analysis else None),
             }
             for diary in diaries
         ]
@@ -48,7 +49,7 @@ def emotion_trend(user: User = Depends(get_current_user), db: Session = Depends(
 @router.get("/emotion-distribution", response_model=ApiResponse[list[dict]])
 def emotion_distribution(user: User = Depends(get_current_user), db: Session = Depends(get_db)):
     counts = Counter(
-        diary.analysis.primary_emotion
+        normalize_emotion_label(diary.analysis.primary_emotion)
         for diary in user_diaries(db, user.id)
         if diary.analysis
     )

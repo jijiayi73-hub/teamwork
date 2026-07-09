@@ -40,7 +40,7 @@ class TestCreateEntry:
         assert response.status_code == 201
         data = response.json()
         analysis = data["data"]["analysis"]
-        assert analysis["primary_emotion"] in ["joy", "calm"]
+        assert analysis["primary_emotion"] in ["开心", "平静"]
 
     def test_create_entry_negative_emotion(self, client, auth_headers):
         """Test entry creation with negative content."""
@@ -50,7 +50,7 @@ class TestCreateEntry:
         assert response.status_code == 201
         data = response.json()
         analysis = data["data"]["analysis"]
-        assert analysis["primary_emotion"] in ["anxiety", "sadness"]
+        assert analysis["primary_emotion"] in ["焦虑", "难过"]
         assert analysis["emotion_score"] < 60
 
     def test_create_entry_neutral_content(self, client, auth_headers):
@@ -62,7 +62,7 @@ class TestCreateEntry:
         data = response.json()
         analysis = data["data"]["analysis"]
         # Neutral content should map to neutral or calm
-        assert analysis["primary_emotion"] in ["neutral", "calm"]
+        assert analysis["primary_emotion"] in ["中性", "平静"]
 
     def test_create_entry_anxiety_content(self, client, auth_headers):
         """Test entry creation with anxiety-related content."""
@@ -72,7 +72,7 @@ class TestCreateEntry:
         assert response.status_code == 201
         data = response.json()
         analysis = data["data"]["analysis"]
-        assert analysis["primary_emotion"] == "anxiety"
+        assert analysis["primary_emotion"] == "焦虑"
 
     def test_create_entry_calm_content(self, client, auth_headers):
         """Test entry creation with calm-related content."""
@@ -82,7 +82,7 @@ class TestCreateEntry:
         assert response.status_code == 201
         data = response.json()
         analysis = data["data"]["analysis"]
-        assert analysis["primary_emotion"] == "calm"
+        assert analysis["primary_emotion"] == "平静"
 
     def test_create_entry_empty_content(self, client, auth_headers):
         """Test entry creation with empty content fails."""

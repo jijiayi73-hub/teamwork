@@ -29,6 +29,7 @@ from ..schemas.trash import (
     TrashItemRead,
     TrashListResponse,
 )
+from ..utils.emotions import normalize_emotion_label
 
 router = APIRouter(prefix="/trash", tags=["trash"])
 
@@ -43,7 +44,7 @@ def _to_trash_item(memory: MemoryCard, deleted_conv_count: int) -> TrashItemRead
         excerpt=diary.content[:180] if diary else "",
         diary_date=diary.diary_date.isoformat() if diary else "",
         cover_image_url=memory.cover_image_url,
-        emotion_label=memory.emotion_label,
+        emotion_label=normalize_emotion_label(memory.emotion_label),
         emotion_color=memory.emotion_color,
         deleted_at=memory.deleted_at or datetime.now(timezone.utc),
         deleted_conversations_count=deleted_conv_count,
