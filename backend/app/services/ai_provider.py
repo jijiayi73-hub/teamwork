@@ -270,6 +270,76 @@ class AIProvider:
         except Exception as e:
             raise AIProviderError(f"Unexpected error: {e}") from e
 
+    def should_retrieve_context(
+        self,
+        user_message: str,
+        mode: Literal["companion", "past_self"] = "companion",
+    ) -> tuple[bool, str]:
+        """Decide whether to retrieve historical context based on user input.
+
+        Uses a lightweight LLM call to analyze if the user's message requires
+        historical context. This avoids unnecessary retrieval costs for simple
+        greetings or casual conversations.
+
+        Args:
+            user_message: The user's current message
+            mode: Conversation mode
+
+        Returns:
+            Tuple of (should_retrieve: bool, reasoning: str)
+
+        Examples:
+            - "你好" -> (False, "Simple greeting, no context needed")
+            - "我之前是不是也遇到过类似的情况？" -> (True, "User asks about similar past experiences")
+            - "那件让我很焦虑的事情，后来怎么样了？" -> (True, "User references a past anxious event")
+        """
+        decision_prompt = f"""分析用户的这条消息，判断是否需要检索用户的历史日记记录来更好地回应。
+
+用户消息：{user_message}
+
+判断标准：
+1. 用户明确提到"之前"、"以前"、"上次"、"过去"等时间词 -> 需要检索
+2. 用户询问"类似的情况"、"是不是也"等比较性表达 -> 需要检索
+3. 用户提到"那件事"、"这件事"但没有在当前对话中说明是什么 -> 可能需要检索
+4. 用户只是打招呼、简单问候、表达当前情绪 -> 不需要检索
+5. past_self 模式下，用户询问"后来怎么样了"、"之后呢" -> 需要检索
+
+请只返回 JSON 格式：{{"should_retrieve": true/false, "reasoning": "简短原因"}}"""
+
+        try:
+            response = self.client.chat.completions.create(
+                model=self.default_model,
+                messages=[
+                    {
+                        "role": "system",
+                        "content": "你是判断是否需要检索历史记录的助手。只返回JSON格式的决策结果。",
+                    },
+                    {"role": "user", "content": decision_prompt},
+                ],
+                temperature=0.1,  # Low temperature for consistent decisions
+                max_tokens=100,
+                timeout=10,  # Shorter timeout for decision
+            )
+
+            content = response.choices[0].message.content or "{}"
+
+            # Parse JSON response
+            import json
+            try:
+                result = json.loads(content)
+                should_retrieve = result.get("should_retrieve", False)
+                reasoning = result.get("reasoning", "No reasoning provided")
+                return (should_retrieve, reasoning)
+            except json.JSONDecodeError:
+                # Fallback: check for keywords
+                keywords_retrieve = ["之前", "以前", "上次", "过去", "类似", "后来", "之后", "那件事", "那个时候"]
+                has_keyword = any(kw in user_message for kw in keywords_retrieve)
+                return (has_keyword, f"Keyword matching fallback: found 'retrieve' keywords" if has_keyword else "No clear retrieve keywords")
+
+        except Exception as e:
+            # On any error, default to False to avoid blocking the conversation
+            return (False, f"Decision failed: {str(e)}, defaulting to no retrieval")
+
     def _build_system_prompt(
         self,
         mode: Literal["companion", "past_self"],

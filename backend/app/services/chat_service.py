@@ -204,12 +204,28 @@ class ChatService:
                     mode, request.content, anchor_diary if mode == "past_self" else None
                 )
 
-            # Retrieve context if requested
+            # AI decides whether to retrieve historical context
+            # This replaces the old use_memory parameter from frontend
+            ai_provider = self.ai_provider or self._get_ai_provider()
+            self.ai_provider = ai_provider
+
+            should_retrieve, retrieve_reasoning = ai_provider.should_retrieve_context(
+                user_message=request.content,
+                mode=mode,
+            )
+
+            # For past_self mode, always retrieve (the anchor is the context)
+            if mode == "past_self":
+                effective_use_memory = True
+            else:
+                effective_use_memory = should_retrieve
+
+            # Retrieve context based on AI decision
             retrieved_diaries, strategy_name = retrieve_context(
                 db=self.db,
                 user_id=user_id,
                 query=request.content,
-                use_memory=request.use_memory,
+                use_memory=effective_use_memory,
                 mode=mode,
                 anchor_diary_id=anchor_diary_id,
                 is_followup=is_followup,

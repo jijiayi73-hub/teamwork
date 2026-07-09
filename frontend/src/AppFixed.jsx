@@ -261,7 +261,7 @@ function ChatPage() {
         conversation_id: conversationId,
         mode: conversationId ? null : 'companion',
         content: rawContent,
-        use_memory: false,
+        // use_memory is now decided by AI on backend, no need to send
         anchor_diary_id: null,
       });
       const assistant = response.data?.assistant_message || { content: '我收到了你的消息，但这次没有生成回复。可以再试一次。', role: 'assistant' };

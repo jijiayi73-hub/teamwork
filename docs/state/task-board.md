@@ -1,5 +1,78 @@
 # Inner Garden Task Board
 
+## 2026-07-10 Task Update: TASK-047 AI 主动决策 RAG 检索
+
+### TASK-047: AI 主动决策是否检索历史上下文
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | Deploying |
+| **Started** | 2026-07-10 |
+
+#### 目标
+由 Chat LLM 根据用户输入主动决策是否检索历史日记上下文，全局应用（companion 和 past_self 模式），部署到生产环境。
+
+#### 问题
+之前 RAG 检索功能由前端硬编码 `use_memory: false` 控制，导致所有复杂的检索逻辑（三因子评分、锚点时间窗口）都是"死代码"，从未被实际使用。
+
+#### 实现内容
+1. 在 `ai_provider.py` 添加 `should_retrieve_context()` 方法，使用轻量级 LLM 调用分析用户输入
+2. 修改 `chat_service.py` 在检索前调用 AI 决策，根据结果选择是否检索
+3. 前端移除 `use_memory: false` 硬编码
+4. past_self 模式始终检索（锚点是必需的上下文）
+
+#### AI 决策逻辑
+```
+用户输入消息
+    ↓
+AI 分析消息关键词和语义
+    ↓
+判断是否需要检索历史上下文
+    ↓
+决定调用 KeywordEmotionTimeStrategy 或 AnchorContextualStrategy
+```
+
+#### 决策标准
+- 用户提到"之前"、"以前"、"上次"、"过去" → 需要检索
+- 用户询问"类似的情况"、"是不是也" → 需要检索
+- 用户提到"那件事"但未说明是什么 → 可能需要检索
+- 用户只是打招呼、简单问候 → 不需要检索
+- past_self 模式询问"后来怎么样了" → 需要检索
+
+#### 验证
+```bash
+cd backend
+py -c "from app.services.ai_provider import AIProvider; print('AIProvider imports OK')"
+# AIProvider imports OK
+
+py -c "from app.services.chat_service import ChatService; print('ChatService imports OK')"
+# ChatService imports OK
+
+cd frontend
+npm run build
+# ✓ built in 3.38s
+```
+
+#### VPS 部署步骤
+1. 同步代码到 VPS
+2. 重建后端容器：`docker compose -f docker-compose.prod.yml build backend`
+3. 重启后端容器：`docker compose -f docker-compose.prod.yml up -d backend`
+4. 验证 Chat API 功能
+
+#### 预期行为
+- AI 根据用户输入智能决策是否检索历史上下文
+- 三因子评分（关键词 + 情绪 + 时间）在 companion 模式下被实际使用
+- 锚点时间窗口检索在 past_self 模式下正常工作
+- 无需前端配置，完全由后端 AI 决策
+
+#### 相关文件
+- `backend/app/services/ai_provider.py` - 添加 `should_retrieve_context()` 方法
+- `backend/app/services/chat_service.py` - 使用 AI 决策替代 `use_memory` 参数
+- `frontend/src/AppFixed.jsx` - 移除 `use_memory: false` 硬编码
+
+---
+
 ## 2026-07-10 Task Update: TASK-046 图片加载 CORS 问题修复
 
 ### TASK-046: Chat-AI 图片上传后背景图不更新、封面图显示时有时无
