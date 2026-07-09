@@ -33,7 +33,14 @@ from ..schemas.chat import (
     RetrievalMetadata,
     SafetyCheck,
 )
-from .ai_provider import AIProvider, AITimeoutError, AIProviderError, AIRateLimitError, AIResponse
+from .ai_provider import (
+    AIConfigError,
+    AIProvider,
+    AITimeoutError,
+    AIProviderError,
+    AIRateLimitError,
+    AIResponse,
+)
 from .retrieval_service import retrieve_context, RetrievedDiary
 from .safety_service import SafetyService, SafetyCheck as SafetyCheckData
 
@@ -275,6 +282,10 @@ class ChatService:
                     200,
                 )
 
+            except AIRateLimitError:
+                self.db.commit()
+                return self._rate_limit_response(request_id), 429
+
             except AITimeoutError:
                 self.db.commit()
                 return (
@@ -286,9 +297,14 @@ class ChatService:
                     504,
                 )
 
-            except AIRateLimitError:
+            except AIConfigError as e:
                 self.db.commit()
-                return self._rate_limit_response(request_id), 429
+                return (
+                    self._ai_error_response(
+                        str(e), request_id
+                    ),
+                    502,
+                )
 
             except AIProviderError as e:
                 self.db.commit()

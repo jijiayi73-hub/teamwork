@@ -92,6 +92,8 @@ powershell -ExecutionPolicy Bypass -File scripts\stop.ps1
 - 📄 **API 文档**: http://localhost:8000/docs
 - 🌐 **前端界面**: http://localhost:5173
 
+Linux / macOS 的 `scripts/start.sh` 默认会监听 `0.0.0.0`，同一局域网设备可使用脚本输出的 `http://<本机局域网IP>:5173` 访问前端，或用 `http://<本机局域网IP>:8000/docs` 查看 API 文档。
+
 ### 手动启动（高级用户）
 
 如果需要单独启动某个服务：

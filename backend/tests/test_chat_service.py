@@ -7,6 +7,7 @@ from app.models.chat import Conversation, Message
 from app.models.diary import Diary, EmotionAnalysis, Entry, User
 from app.schemas.chat import ChatRequest, ConversationCreate
 from app.services.chat_service import ChatService
+from app.services.ai_provider import AIConfigError
 from tests.chat_test_utils import FailedAIProvider, FakeAIProvider, TimeoutAIProvider
 
 
@@ -56,6 +57,10 @@ def create_diary(db_session, user_id: int) -> Diary:
 
 def provider_patch(provider):
     return patch("app.services.ai_provider.get_provider", return_value=provider)
+
+
+def provider_config_error_patch(message: str = "openai package not installed"):
+    return patch("app.services.ai_provider.get_provider", side_effect=AIConfigError(message))
 
 
 def test_send_message_creates_persistent_conversation_and_messages(db_session):
@@ -142,4 +147,20 @@ def test_ai_failures_save_user_message_without_assistant(db_session):
     assert failed_response["message"] == "ai_service_unavailable"
     assert failed_response["error"]["details"]["provider"] in {"openai", "deepseek"}
     assert db_session.query(Message).filter_by(role="user").count() == 2
+    assert db_session.query(Message).filter_by(role="assistant").count() == 0
+
+
+def test_ai_config_error_is_returned_as_readable_502(db_session):
+    user = create_user(db_session, "configuser")
+
+    with provider_config_error_patch():
+        response, status = ChatService(db_session).send_message(
+            user.id,
+            ChatRequest(mode="companion", content="hello", use_memory=False),
+        )
+
+    assert status == 502
+    assert response["message"] == "ai_service_unavailable"
+    assert response["error"]["details"]["provider_error"] == "openai package not installed"
+    assert db_session.query(Message).filter_by(role="user").count() == 1
     assert db_session.query(Message).filter_by(role="assistant").count() == 0
