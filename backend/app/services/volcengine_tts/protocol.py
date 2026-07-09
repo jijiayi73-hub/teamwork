@@ -113,7 +113,7 @@ def build_frame(
     # Build Byte 2: Serialization (high) + Compression (low)
     byte2_high = SERIALIZATION_JSON if serialization == "json" else SERIALIZATION_RAW
     byte2_low = COMPRESSION_GZIP if compression == "gzip" else COMPRESSION_NONE
-    byte2 = byte2_high | byte2_low
+    byte2 = (byte2_high << 4) | byte2_low
 
     # Byte 3: Reserved
     byte3 = RESERVED
@@ -169,6 +169,12 @@ def parse_frame(data: bytes) -> ParsedFrame:
     - Payload Length (4 bytes, big-endian int)
     - Payload bytes
 
+    Note: Server error responses (flags=0) have a different format:
+    - Header (4 bytes)
+    - Unknown 4 bytes (possibly error code or metadata)
+    - Payload Length (4 bytes, big-endian int)
+    - Payload bytes
+
     Args:
         data: Raw frame bytes
 
@@ -201,25 +207,32 @@ def parse_frame(data: bytes) -> ParsedFrame:
             raise ProtocolError("Frame too short to read event type")
         event = struct.unpack('>I', data[offset:offset + 4])[0]
         offset += 4
+    elif message_type == ERROR_INFORMATION:
+        # Server error responses have an extra 4-byte field before payload_size
+        # Skip this unknown field (possibly error code or metadata)
+        offset += 4
 
     # Parse session ID if present
+    # Session ID is only present in certain request/response types with event
+    # (e.g., START_SESSION, TASK_REQUEST, SESSION_STARTED, etc.)
     session_id = None
-    # Session ID is present for certain message types
-    # Check if there's enough data for session_id_len (4 bytes)
-    if offset + 4 <= len(data):
-        # Peek at session_id_len to see if it's reasonable
-        potential_session_id_len = struct.unpack('>I', data[offset:offset + 4])[0]
-        # Check if this looks like a valid session_id_len (not too large)
-        # and if there's enough data for it + payload_len (4 bytes)
-        if potential_session_id_len > 0 and potential_session_id_len < 256:
-            if offset + 4 + potential_session_id_len + 4 <= len(data):
-                session_id_bytes = data[offset + 4:offset + 4 + potential_session_id_len]
-                try:
-                    session_id = session_id_bytes.decode('utf-8')
-                    offset += 4 + potential_session_id_len
-                except UnicodeDecodeError:
-                    # Not valid UTF-8, skip session_id parsing
-                    pass
+    # Only try to parse session_id if we have an event (flags indicate extended format)
+    # AND the message type is one that typically carries session_id
+    if has_event and message_type in (FULL_CLIENT_REQUEST, FULL_SERVER_RESPONSE):
+        if offset + 4 <= len(data):
+            # Peek at session_id_len to see if it's reasonable
+            potential_session_id_len = struct.unpack('>I', data[offset:offset + 4])[0]
+            # Check if this looks like a valid session_id_len (not too large)
+            # and if there's enough data for it + payload_len (4 bytes)
+            if 0 < potential_session_id_len < 256:
+                if offset + 4 + potential_session_id_len + 4 <= len(data):
+                    session_id_bytes = data[offset + 4:offset + 4 + potential_session_id_len]
+                    try:
+                        session_id = session_id_bytes.decode('utf-8')
+                        offset += 4 + potential_session_id_len
+                    except UnicodeDecodeError:
+                        # Not valid UTF-8, skip session_id parsing
+                        pass
 
     # Parse payload size (4 bytes big-endian)
     if offset + 4 > len(data):
