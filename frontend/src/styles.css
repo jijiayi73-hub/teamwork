@@ -1138,9 +1138,10 @@ main:has(.liquid-memory-background) .memory-card:hover {
 .monthly-report-page {
   position: relative;
   z-index: 10;
-  display: grid;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
   min-height: calc(100vh - 96px);
-  place-items: center;
   padding: 1.4rem;
   color: #ffffff;
   font-family: Inter, "Microsoft YaHei", "PingFang SC", Arial, sans-serif;
@@ -1158,6 +1159,64 @@ main:has(.liquid-memory-background) .memory-card:hover {
   background: rgba(255, 255, 255, 0.08);
   box-shadow: 0 18px 54px rgba(0, 0, 0, 0.3);
   backdrop-filter: blur(40px);
+}
+
+.monthly-report-summary {
+  display: grid;
+  width: min(90vw, 900px);
+  gap: 0.4rem;
+  margin-bottom: 0.85rem;
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  border-radius: 16px;
+  background: rgba(255, 255, 255, 0.06);
+  padding: 0.75rem 0.9rem;
+  text-align: left;
+  backdrop-filter: blur(28px);
+  box-shadow: 0 12px 34px rgba(0, 0, 0, 0.22);
+}
+
+.monthly-report-summary-label {
+  margin: 0;
+  color: rgba(200, 224, 255, 0.72);
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.16em;
+  line-height: 1;
+  text-transform: uppercase;
+}
+
+.monthly-report-summary strong {
+  color: rgba(255, 255, 255, 0.94);
+  font-size: 0.98rem;
+  font-weight: 700;
+  line-height: 1.2;
+}
+
+.monthly-report-summary-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.35rem;
+}
+
+.monthly-report-summary-item {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  min-height: 1.35rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 0 0.42rem;
+  color: rgba(255, 255, 255, 0.74);
+  font-size: 0.72rem;
+  line-height: 1;
+}
+
+.monthly-report-summary-item i {
+  width: 0.48rem;
+  height: 0.48rem;
+  border-radius: 999px;
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.08);
 }
 
 .monthly-report-header {
@@ -1345,6 +1404,42 @@ main:has(.liquid-memory-background) .memory-card:hover {
   line-height: 1;
 }
 
+.monthly-report-emotion-dot {
+  align-self: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  box-shadow:
+    0 0 0 4px rgba(255, 255, 255, 0.08),
+    0 8px 20px rgba(0, 0, 0, 0.28);
+}
+
+.monthly-report-calendar.is-empty {
+  grid-template-columns: 1fr;
+  min-height: 240px;
+}
+
+.monthly-report-calendar.is-empty .monthly-report-day {
+  display: none;
+}
+
+.monthly-report-empty-state {
+  display: grid;
+  min-height: 240px;
+  place-items: center;
+  border: 1px dashed rgba(255, 255, 255, 0.14);
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.035);
+}
+
+.monthly-report-empty-state p {
+  margin: 0;
+  color: rgba(255, 255, 255, 0.78);
+  font-family: 'Playfair Display', Georgia, serif;
+  font-size: 1.35rem;
+  line-height: 1.35;
+}
+
 .monthly-report-footer {
   display: grid;
   gap: 12px;
@@ -1509,8 +1604,28 @@ main:has(.liquid-memory-background) .memory-card:hover {
 }
 
 .monthly-report-modal-content .monthly-report-modal-emotion {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
   color: #ffffff;
   font-weight: 600;
+}
+
+.monthly-report-inline-dot,
+.monthly-report-modal-dot {
+  display: inline-block;
+  border-radius: 999px;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.08);
+}
+
+.monthly-report-inline-dot {
+  width: 0.8rem;
+  height: 0.8rem;
+}
+
+.monthly-report-modal-dot {
+  width: 5rem;
+  height: 5rem;
 }
 
 .monthly-report-modal button {
@@ -1542,6 +1657,11 @@ main:has(.liquid-memory-background) .memory-card:hover {
   .monthly-report-shell {
     width: 100%;
     min-height: auto;
+  }
+
+  .monthly-report-summary {
+    width: 100%;
+    margin-bottom: 0.9rem;
   }
 
   .monthly-report-weekdays,

@@ -1,5 +1,34 @@
 # Inner Garden VPS 部署状态
 
+## 2026-07-09 最新更新：TASK-031 滚动修复部署 ✅
+
+已部署 TASK-031 (聊天对话框滚动修复) 到生产环境。
+
+| 项目 | 状态 | 说明 |
+|------|------|------|
+| 前端容器 | ✅ | 重新构建并重启，包含滚动修复 |
+| 后端容器 | ✅ | 正常运行 |
+| 健康检查 | ✅ | `https://jijiayi.online/api/v1/health` 返回 healthy |
+| 前端页面 | ✅ | `https://jijiayi.online/` 返回有效 HTML |
+
+**部署内容**：
+- 移除 `.ai-notification-list` 的 `justify-content: flex-end`
+- 添加 `messagesEndRef` 和自动滚动 `useEffect`
+- 新消息到达时自动滚动到底部
+- 用户可以自由向上滚动查看历史消息
+
+**验证**：
+```bash
+ssh vps "docker ps --filter 'name=inner-garden'"
+# inner-garden-frontend   Up (healthy)
+# inner-garden-backend    Up (healthy)
+
+curl https://jijiayi.online/api/v1/health
+# {"success":true,"data":{"status":"healthy"},"message":"ok"}
+```
+
+---
+
 ## 2026-07-09 最新状态：已部署 ✅
 
 Inner Garden 已部署到 VPS `/opt/inner-garden`，前端和后端容器均为 healthy，公网 HTTPS 访问已验证，SSL 证书已配置。

@@ -310,24 +310,18 @@ function ChatPage() {
 
   return (
     <section className="relative z-10 flex min-h-[calc(100vh-96px)] items-center justify-center px-5 pb-12 pt-4 lg:px-14">
-      {uploadedImage ? (
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${uploadedImage})` }}
+      <Suspense fallback={null}>
+        <ParticleWaveHero
+          backgroundOpacity={uploadedImage ? 0.85 : 0.62}
+          className="chat-particle-wave"
+          fit="cover"
+          imageUrl={uploadedImage || undefined}
+          interactive
+          particleSize={14}
+          waveSpeed={1.35}
+          waveStrength={0.28}
         />
-      ) : (
-        <Suspense fallback={null}>
-          <ParticleWaveHero
-            backgroundOpacity={0.62}
-            className="chat-particle-wave"
-            fit="cover"
-            interactive
-            particleSize={14}
-            waveSpeed={1.35}
-            waveStrength={0.28}
-          />
-        </Suspense>
-      )}
+      </Suspense>
       <div className="chat-stage">
         <div className="text-center">
           <p className="text-xs uppercase tracking-[0.34em] text-[#c8e0ff]/70">AI Companion Chat</p>
@@ -1551,6 +1545,28 @@ function MonthlyReport() {
     return memory.cover_image_url || memory.diary?.cover_image_url || '';
   }
 
+  function getMonthlyEmotionKey(memory) {
+    const emotion = String(getDiaryEmotion(memory)).trim().toLowerCase();
+    if (['joy', 'happy', 'happiness', '开心', '快乐'].includes(emotion)) return 'joy';
+    if (['calm', 'peaceful', 'peace', '平静', '安定'].includes(emotion)) return 'calm';
+    if (['sad', 'sadness', '难过', '伤心', '低落'].includes(emotion)) return 'sadness';
+    if (['anxiety', 'anxious', 'fear', '焦虑', '紧张'].includes(emotion)) return 'anxiety';
+    if (['tired', 'fatigue', 'exhausted', '疲惫', '疲劳'].includes(emotion)) return 'tired';
+    return EMOTION_COLOR_MAP[emotion] ? emotion : 'neutral';
+  }
+
+  function getMonthlyEmotionLabel(emotionKey) {
+    const labels = {
+      anxiety: '焦虑',
+      calm: '平静',
+      joy: '开心',
+      neutral: '中性',
+      sadness: '难过',
+      tired: '疲惫',
+    };
+    return labels[emotionKey] || '未知';
+  }
+
   function getDiarySummary(memory) {
     return memory.excerpt || memory.conversation_summary || memory.diary?.content || '这一天被温柔地保存下来。';
   }
@@ -1558,11 +1574,14 @@ function MonthlyReport() {
   function normalizeMemory(memory) {
     const dateKey = getDiaryDateKey(memory);
     if (!dateKey) return null;
+    const emotionKey = getMonthlyEmotionKey(memory);
     return {
       ...memory,
       dateKey,
       displayDate: memory.diary_date || dateKey,
-      displayEmotion: getDiaryEmotion(memory),
+      displayEmotion: getMonthlyEmotionLabel(emotionKey),
+      emotionColor: getEmotionColor(emotionKey),
+      emotionKey,
       displayImage: getDiaryImage(memory),
       displaySummary: getDiarySummary(memory),
       emoji: getMoodEmoji(memory),
@@ -1614,6 +1633,23 @@ function MonthlyReport() {
   }, [visibleMonth, diaryIndex]);
 
   const monthTitle = `${MONTH_NAMES[visibleMonth.month]} ${visibleMonth.year}`;
+  const monthlyEntries = useMemo(() => Object.values(diaryIndex), [diaryIndex]);
+  const monthlyStats = useMemo(() => {
+    const counts = monthlyEntries.reduce((result, entry) => {
+      const emotionKey = entry.emotionKey || 'neutral';
+      result[emotionKey] = (result[emotionKey] || 0) + 1;
+      return result;
+    }, {});
+    return Object.entries(counts)
+      .sort((left, right) => right[1] - left[1])
+      .map(([emotionKey, count]) => ({
+        color: getEmotionColor(emotionKey),
+        count,
+        emotionKey,
+        label: getMonthlyEmotionLabel(emotionKey),
+      }));
+  }, [monthlyEntries]);
+  const hasMonthlyEntries = monthlyEntries.length > 0;
 
   function showEmptyToast() {
     setToastVisible(true);
@@ -1640,6 +1676,25 @@ function MonthlyReport() {
 
   return (
     <section className="monthly-report-page" aria-label="Monthly mood report">
+      <section className="monthly-report-summary" aria-label="Monthly emotion summary">
+        <p className="monthly-report-summary-label">本月统计</p>
+        {hasMonthlyEntries ? (
+          <>
+            <strong>{monthlyEntries.length} 篇日记</strong>
+            <div className="monthly-report-summary-list">
+              {monthlyStats.map((item) => (
+                <span className="monthly-report-summary-item" key={item.emotionKey}>
+                  <i style={{ backgroundColor: item.color }} />
+                  {item.label} {item.count}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <strong>你还没有开始记录呢</strong>
+        )}
+      </section>
+
       <div className="monthly-report-shell">
         <header className="monthly-report-header">
           <p className="monthly-report-eyebrow">Inner Garden</p>
@@ -1659,7 +1714,12 @@ function MonthlyReport() {
           {WEEKDAYS.map((weekday) => <span key={weekday}>{weekday}</span>)}
         </div>
 
-        <div className="monthly-report-calendar">
+        <div className={`monthly-report-calendar ${hasMonthlyEntries ? '' : 'is-empty'}`}>
+          {!hasMonthlyEntries && (
+            <div className="monthly-report-empty-state" role="status">
+              <p>你还没有开始记录呢</p>
+            </div>
+          )}
           {calendarDays.map((day) => {
             const dayClassName = [
               'monthly-report-day',
@@ -1677,7 +1737,13 @@ function MonthlyReport() {
                 type="button"
               >
                 <span className="monthly-report-day-number">{day.day}</span>
-                {day.entry && <span className="monthly-report-emoji">{day.entry.emoji}</span>}
+                {day.entry && (
+                  <span
+                    aria-label={day.entry.displayEmotion}
+                    className="monthly-report-emotion-dot"
+                    style={{ backgroundColor: day.entry.emotionColor }}
+                  />
+                )}
               </button>
             );
           })}
@@ -1712,7 +1778,11 @@ function MonthlyReport() {
               <span>{selectedEntry.displayDate}</span>
               <h3>{selectedEntry.title || 'Untitled Memory'}</h3>
               <p className="monthly-report-modal-emotion">
-                {selectedEntry.emoji} {selectedEntry.displayEmotion}
+                <span
+                  className="monthly-report-inline-dot"
+                  style={{ backgroundColor: selectedEntry.emotionColor }}
+                />
+                {selectedEntry.displayEmotion}
               </p>
               <p>{selectedEntry.displaySummary || '这一天已经被温柔地保存下来。'}</p>
             </div>

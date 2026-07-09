@@ -1,5 +1,153 @@
 # Inner Garden Task Board
 
+## 2026-07-10 Task Update: TASK-034 上传图片后背景动画效果修复
+
+### TASK-034: 聊天背景动画效果保留
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 问题描述
+用户上传图片后，原来会动的旋转和粒子效果变成了静态图片。
+
+#### 根本原因
+ChatPage 组件使用条件渲染互斥显示：有图片时显示静态 div 背景，无图片时显示 ParticleWaveHero 动画组件。两者不能共存，导致上传图片后动画消失。
+
+#### 解决方案
+将用户上传的图片 URL 传递给 ParticleWaveHero 组件的 imageUrl 属性，移除条件渲染，使图片和动画可以同时显示。
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| ChatPage 背景 | 移除条件渲染，传递 uploadedImage 给 ParticleWaveHero | `frontend/src/AppFixed.jsx` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.33s
+```
+
+#### 预期行为
+- 上传图片后，图片作为背景显示
+- 粒子波浪动画叠加在图片上方继续运行
+- 图片可见度提高（backgroundOpacity 0.85）
+
+#### 文档
+- `docs/vibe-logs/log-42-chat-background-animation-fix.md`
+
+---
+
+## 2026-07-10 Task Update: TASK-033 聊天 Failed to Fetch 错误修复
+
+### TASK-033: 聊天消息发送失败修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ⚠️ Partially Fixed - 需要浏览器验证 |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-10 |
+
+#### 问题
+用户报告聊天消息发送失败："发送失败：Failed to fetch。用户消息已保留，可以重试或生成草稿。"
+
+#### 根本原因
+1. **Cloudflare CDN 代理**: 域名使用 Cloudflare 代理，导致 POST 请求无法正确传递
+2. **Nginx 配置不完整**: 缺少 Content-Type 和 Content-Length 头转发
+
+#### 修复内容
+1. **关闭 Cloudflare 代理**: 将 DNS 从 "Proxied" 改为 "DNS only"
+2. **更新 Nginx 配置**:
+   - 添加 `proxy_set_header Content-Type $content_type;`
+   - 添加 `proxy_set_header Content-Length $content_length;`
+   - 添加 `proxy_buffering off;`
+   - 添加 `proxy_request_buffering off;`
+
+#### 验证结果
+| 测试方式 | 结果 |
+|---------|------|
+| 直接访问后端 | ✅ 成功 |
+| VPS 内部 HTTPS | ✅ 成功 |
+| 外部 curl HTTPS | ⚠️ 不稳定（SSL 重协商问题）|
+| 浏览器访问 | ❓ 待用户测试 |
+
+#### 下一步
+请在浏览器中访问 https://jijiayi.online 测试聊天功能。
+
+#### 文档
+- `docs/vibe-logs/log-41-chat-fetch-fix.md`
+
+---
+
+## 2026-07-10 Task Update: TASK-032 日记标题与内容文艺化改进
+
+### TASK-032: 日记标题文艺化与内容完整性优化
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+改进 AI 生成的日记标题和内容，使其更加文艺、诗意，同时确保不编造事实，并将用户话语整理成完整的日记叙述。
+
+#### 实现内容
+1. **Fallback 标题文艺化** - 更新 `_generate_title_from_emotion()` 函数
+   - "开心的时刻" → "微光点亮的日子"
+   - "平静的时刻" → "内心的宁静港湾"
+   - "焦虑的时刻" → "翻涌过后是平静"
+   - "低落的时刻" → "雨后才有彩虹"
+   - "今天的记录" → "平凡中的诗意"
+
+2. **LLM Prompt 优化** - 扩展 `EMOTION_ANALYSIS_SYSTEM_PROMPT`
+   - 标题要求：明确"文艺诗意，含蓄不直白"的风格
+   - 提供 5 种情绪的标题示例（自然意象、空间意象）
+   - 强化"不虚构"原则：只写入用户明确表达的内容
+   - 优化日记结构：日期背景 + 用户表达的内容 + 期待/想法
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| Fallback 标题函数 | 更新文艺风格标题映射 | `backend/app/services/analysis_service.py` |
+| LLM Prompt | 添加标题文艺风格指南和内容完整性要求 | `backend/app/services/analysis_service.py` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.services.analysis_service import EMOTION_ANALYSIS_SYSTEM_PROMPT, _generate_title_from_emotion; print('OK')"
+# Result: Backend imports OK
+# Prompt updated with literary guidance
+# Fallback titles verified
+```
+
+#### API / 数据库影响
+- **API**: 无影响。`draft_title` 和 `draft_content` 字段保持不变
+- **数据库**: 无影响。无需修改表结构
+
+#### 预期行为
+- **标题风格**：使用自然意象（微光、彩虹、港湾）和空间意象，含蓄表达情绪
+- **内容结构**：
+  - 开头：日期背景（"今天"、"这一天"）
+  - 中间：用户表达的**具体内容**（用自己的话整理）
+  - 结尾：用户表达的**期待或想法**
+- **真实性保证**：
+  - 只写入用户明确表达的内容
+  - 不虚构事件、人物、时间、原因
+  - 不添加诊断或评判性结论
+  - 用户只表达了感受就只写感受
+
+#### 文档
+- `docs/vibe-logs/log-40-diary-literary-improvement.md` (待创建)
+
+---
+
 ## 2026-07-09 Task Update: TASK-031 Chat Dialog Scroll Fix
 
 ### TASK-031: 聊天对话框滚动修复

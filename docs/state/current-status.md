@@ -1,5 +1,62 @@
 # Inner Garden Current Status
 
+## 2026-07-10 Update: TASK-034 聊天背景动画效果修复
+
+修复上传图片后背景动画效果消失的问题，确保用户上传图片后仍能保留旋转和粒子动画效果。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 背景动画保留 | Fixed | 将 `uploadedImage` 传递给 `ParticleWaveHero` 组件而非静态 div |
+| 条件渲染移除 | Fixed | 始终渲染 `ParticleWaveHero`，移除互斥的条件渲染 |
+| 图片可见度优化 | Implemented | `backgroundOpacity` 动态调整（有图片 0.85，无图片 0.62） |
+| 前端构建 | Passing | `npm run build` → ✓ built in 2.33s |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.33s
+```
+
+**Changes:**
+- **Frontend**: 更新 `frontend/src/AppFixed.jsx` - ChatPage 背景渲染逻辑
+
+**Expected behavior:**
+- 上传图片后，图片作为背景显示
+- 粒子波浪动画叠加在图片上方继续运行
+- 旋转和波浪动画效果不受影响
+- 多次上传图片时，每次覆盖上一张，动画持续运行
+
+---
+
+## 2026-07-10 Update: TASK-032 日记标题与内容文艺化改进
+
+改进 AI 生成的日记标题和内容风格，使其更加文艺诗意，同时确保基于用户真实表达，不编造事实。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Fallback 标题更新 | Implemented | `_generate_title_from_emotion()` 使用文艺风格标题 |
+| LLM Prompt 优化 | Implemented | `EMOTION_ANALYSIS_SYSTEM_PROMPT` 添加文艺风格指南和内容完整性要求 |
+| 后端导入 | Passing | `py -c "from app.services.analysis_service import ..."` → OK |
+
+**Validation:**
+```bash
+cd backend
+py -c "from app.services.analysis_service import EMOTION_ANALYSIS_SYSTEM_PROMPT, _generate_title_from_emotion; print('OK')"
+# Result: Backend imports OK, Prompt updated, Fallback titles verified
+```
+
+**Changes:**
+- **Backend**: 更新 `backend/app/services/analysis_service.py` - `_generate_title_from_emotion()` 函数
+- **Backend**: 更新 `backend/app/services/analysis_service.py` - `EMOTION_ANALYSIS_SYSTEM_PROMPT` prompt
+
+**Expected behavior:**
+- 标题使用自然意象（微光、彩虹、港湾）和空间意象，含蓄表达情绪
+- 日记内容完整整理用户话语，保持第一人称叙述
+- 严格基于用户表达的内容，不虚构事件或感受
+
+---
+
 ## 2026-07-09 Update: TASK-030 语音输入接口实现
 
 在本地实现语音输入相关后端接口，为未来扩展服务端语音转文字功能预留接口。
