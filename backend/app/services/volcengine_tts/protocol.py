@@ -84,11 +84,18 @@ def build_frame(
     """
     Build a Volcengine TTS protocol frame.
 
+    Protocol Format:
+    - Header (4 bytes)
+    - Event Type (4 bytes, big-endian int) - only if event is provided
+    - Session ID Length (4 bytes, big-endian int) + Session ID bytes - only if session_id is provided
+    - Payload Length (4 bytes, big-endian int)
+    - Payload bytes
+
     Args:
         message_type: Message type (FULL_CLIENT_REQUEST, etc.)
-        event: Event ID (optional, required for most requests)
+        event: Event ID (optional, required for most requests) - encoded as 4-byte big-endian int
         payload: Payload data (dict for JSON, bytes for binary)
-        session_id: Session ID (16 bytes UUID, optional)
+        session_id: Session ID string (optional, required for START_SESSION and TASK_REQUEST)
         serialization: Serialization method ("json" or "raw")
         compression: Compression method ("none" or "gzip")
 
@@ -111,29 +118,19 @@ def build_frame(
     # Byte 3: Reserved
     byte3 = RESERVED
 
-    # Build frame parts
-    frame_parts = []
+    # Build frame as bytearray for easier appending
+    frame = bytearray()
+    frame.extend([byte0, byte1, byte2, byte3])
 
-    # Add 4-byte header
-    header = bytes([byte0, byte1, byte2, byte3])
-    frame_parts.append(header)
-
-    # Add event if present (variable-length big-endian)
+    # Add event type if present (4-byte big-endian int)
     if event is not None:
-        # Encode event as variable big-endian bytes
-        event_bytes = encode_variable_int(event)
-        frame_parts.append(event_bytes)
+        frame.extend(struct.pack('>I', event))
 
-    # Add session ID if present (16 bytes)
+    # Add session ID if present (4-byte length + UTF-8 bytes)
     if session_id:
-        import uuid
-        try:
-            session_uuid = uuid.UUID(session_id)
-            session_bytes = session_uuid.bytes
-        except (ValueError, AttributeError):
-            # If not a valid UUID, use string bytes padded/truncated to 16
-            session_bytes = session_id.encode('utf-8')[:16].ljust(16, b'\x00')
-        frame_parts.append(session_bytes)
+        session_id_bytes = session_id.encode('utf-8')
+        frame.extend(struct.pack('>I', len(session_id_bytes)))
+        frame.extend(session_id_bytes)
 
     # Prepare payload bytes
     payload_bytes = b''
@@ -153,19 +150,24 @@ def build_frame(
             payload_bytes = gzip.compress(payload_bytes)
 
     # Add payload size (4 bytes big-endian)
-    payload_size_bytes = struct.pack('>I', len(payload_bytes))
-    frame_parts.append(payload_size_bytes)
+    frame.extend(struct.pack('>I', len(payload_bytes)))
 
     # Add payload
-    frame_parts.append(payload_bytes)
+    frame.extend(payload_bytes)
 
-    # Combine all parts
-    return b''.join(frame_parts)
+    return bytes(frame)
 
 
 def parse_frame(data: bytes) -> ParsedFrame:
     """
     Parse a Volcengine TTS protocol frame.
+
+    Protocol Format:
+    - Header (4 bytes)
+    - Event Type (4 bytes, big-endian int) - if has_event flag is set
+    - Session ID Length (4 bytes) + Session ID bytes - if present
+    - Payload Length (4 bytes, big-endian int)
+    - Payload bytes
 
     Args:
         data: Raw frame bytes
@@ -184,7 +186,7 @@ def parse_frame(data: bytes) -> ParsedFrame:
 
     # Extract header fields
     protocol_version = (byte0 >> 4) & 0x0F
-    header_size = byte0 & 0x0F
+    header_size = (byte0 & 0x0F) * 4  # Header size is in 4-byte units
     message_type = (byte1 >> 4) & 0x0F
     has_event = (byte1 & 0x0F) == WITH_EVENT
     serialization = (byte2 >> 4) & 0x0F
@@ -192,27 +194,32 @@ def parse_frame(data: bytes) -> ParsedFrame:
 
     offset = 4
 
-    # Parse event if present
+    # Parse event type if present (4-byte big-endian int)
     event = None
     if has_event:
-        event, event_length = decode_variable_int(data[offset:])
-        offset += event_length
+        if offset + 4 > len(data):
+            raise ProtocolError("Frame too short to read event type")
+        event = struct.unpack('>I', data[offset:offset + 4])[0]
+        offset += 4
 
-    # Parse session ID if present (16 bytes after event)
-    # The protocol may include session ID in some responses
+    # Parse session ID if present
     session_id = None
-    if offset + 16 <= len(data):
-        # Check if this looks like a UUID (not empty/nulls)
-        potential_uuid = data[offset:offset + 16]
-        if any(b != 0 for b in potential_uuid):
-            import uuid
-            try:
-                session_uuid = uuid.UUID(bytes=potential_uuid)
-                session_id = str(session_uuid)
-                offset += 16
-            except ValueError:
-                # Not a valid UUID, don't advance offset
-                pass
+    # Session ID is present for certain message types
+    # Check if there's enough data for session_id_len (4 bytes)
+    if offset + 4 <= len(data):
+        # Peek at session_id_len to see if it's reasonable
+        potential_session_id_len = struct.unpack('>I', data[offset:offset + 4])[0]
+        # Check if this looks like a valid session_id_len (not too large)
+        # and if there's enough data for it + payload_len (4 bytes)
+        if potential_session_id_len > 0 and potential_session_id_len < 256:
+            if offset + 4 + potential_session_id_len + 4 <= len(data):
+                session_id_bytes = data[offset + 4:offset + 4 + potential_session_id_len]
+                try:
+                    session_id = session_id_bytes.decode('utf-8')
+                    offset += 4 + potential_session_id_len
+                except UnicodeDecodeError:
+                    # Not valid UTF-8, skip session_id parsing
+                    pass
 
     # Parse payload size (4 bytes big-endian)
     if offset + 4 > len(data):
@@ -269,50 +276,10 @@ def parse_frame(data: bytes) -> ParsedFrame:
     )
 
 
-def encode_variable_int(value: int) -> bytes:
-    """
-    Encode integer as variable-length big-endian bytes.
-    Similar to Protocol Buffers varint encoding.
-    """
-    if value < 0:
-        raise ProtocolError(f"Cannot encode negative integer: {value}")
-
-    if value == 0:
-        return b'\x00'
-
-    bytes_list = []
-    while value > 0:
-        # Take lowest 7 bits, set continuation bit if more bytes follow
-        byte = value & 0x7F
-        value >>= 7
-        if value > 0:
-            byte |= 0x80  # Set continuation bit
-        bytes_list.append(byte)
-
-    return bytes(bytes_list)
-
-
-def decode_variable_int(data: bytes) -> tuple[int, int]:
-    """
-    Decode variable-length big-endian integer.
-
-    Returns:
-        Tuple of (decoded_value, bytes_consumed)
-    """
-    value = 0
-    shift = 0
-    bytes_consumed = 0
-
-    for byte in data:
-        bytes_consumed += 1
-        # Take lower 7 bits
-        value |= (byte & 0x7F) << shift
-        # Check continuation bit
-        if not (byte & 0x80):
-            break
-        shift += 7
-        # Safety limit (prevent infinite loop on malformed data)
-        if shift > 28:  # 4 bytes max for reasonable values
-            raise ProtocolError("Variable integer too long")
-
-    return value, bytes_consumed
+# Variable int encoding functions are no longer needed
+# The protocol uses fixed 4-byte big-endian integers for event type
+# Kept for reference in case future protocol versions need them
+# def encode_variable_int(value: int) -> bytes:
+#     ...
+# def decode_variable_int(data: bytes) -> tuple[int, int]:
+#     ...
