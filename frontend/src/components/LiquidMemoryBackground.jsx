@@ -1,16 +1,18 @@
 import { useEffect, useRef, useState } from 'react';
 import * as THREE from 'three';
 
-const DEFAULT_IMAGE_URL = '/memory-garden-bg.jpg';
+const DEFAULT_IMAGE_URL = '/memory-garden-bg-soft.jpg';
 
 const EFFECT = {
-  flowStrength: 0.052,
-  pointerStrength: 0.18,
-  pointerRadius: 0.22,
-  chromaticAberration: 0.008,
+  flowStrength: 0.014,
+  pointerStrength: 0.04,
+  pointerRadius: 0.035,
+  chromaticAberration: 0,
   contrast: 1.08,
-  bloom: 0.18,
-  particleCount: 72,
+  bloom: 0.12,
+  timeScale: 0.18,
+  particleTimeScale: 0.35,
+  particleCount: 96,
 };
 
 export default function LiquidMemoryBackground({
@@ -113,6 +115,11 @@ export default function LiquidMemoryBackground({
           return (uv - 0.5) * coverScale + 0.5;
         }
 
+        float imageBounds(vec2 uv) {
+          vec2 bounds = step(vec2(0.0), uv) * step(uv, vec2(1.0));
+          return bounds.x * bounds.y;
+        }
+
         float wave(vec2 p, float t) {
           float a = sin(p.x * 12.0 + t * 0.72);
           float b = cos(p.y * 10.0 - t * 0.58);
@@ -123,6 +130,7 @@ export default function LiquidMemoryBackground({
 
         void main() {
           vec2 uv = coverUv(vUv, uResolution, uImageResolution);
+          float bounds = imageBounds(uv);
           vec2 centered = vUv - 0.5;
           float t = uTime;
 
@@ -138,11 +146,11 @@ export default function LiquidMemoryBackground({
           float ripple = sin(pointerDist * 78.0 - t * 8.0);
           float falloff = 1.0 - smoothstep(0.0, uPointerRadius, pointerDist);
           vec2 radial = normalize(toPointer + 0.0001) * ripple * falloff;
-          vec2 drag = -uPointerVelocity * falloff * 0.55;
+          vec2 drag = -uPointerVelocity * falloff * 0.35;
           vec2 displacement = flow + radial * uPointerStrength + drag;
 
           float vignette = smoothstep(0.76, 0.2, length(centered));
-          float ca = uChromatic + falloff * uChromatic * 2.4;
+          float ca = uChromatic + falloff * uChromatic * 1.2;
           vec2 chromaDir = normalize(displacement + centered * 0.18 + 0.0001);
 
           vec3 color;
@@ -160,7 +168,7 @@ export default function LiquidMemoryBackground({
           color += vec3(0.06, 0.08, 0.12) * falloff * 0.2;
           color *= mix(0.78, 1.0, vignette);
 
-          gl_FragColor = vec4(color, 1.0);
+          gl_FragColor = vec4(color, bounds);
         }
       `,
     });
@@ -238,12 +246,12 @@ export default function LiquidMemoryBackground({
 
             vec2 pointerClip = vec2(uPointer.x * 2.0 - 1.0, uPointer.y * 2.0 - 1.0);
             float d = distance(pos.xy, pointerClip);
-            float lift = 1.0 - smoothstep(0.0, 0.34, d);
-            pos.xy += normalize(pos.xy - pointerClip + 0.0001) * lift * 0.035;
+            float lift = 1.0 - smoothstep(0.0, 0.12, d);
+            pos.xy += normalize(pos.xy - pointerClip + 0.0001) * lift * 0.02;
 
             gl_Position = vec4(pos, 1.0);
-            gl_PointSize = aSize * (1.0 + lift * 0.7);
-            vAlpha = 0.24 + lift * 0.42 + sin(uTime * 0.5 + aPhase) * 0.12;
+            gl_PointSize = aSize * (1.0 + lift * 0.35);
+            vAlpha = 0.24 + lift * 0.24 + sin(uTime * 0.5 + aPhase) * 0.08;
           }
         `,
         fragmentShader: `
@@ -271,9 +279,9 @@ export default function LiquidMemoryBackground({
       velocity.lerp(targetVelocity, 0.16);
       targetVelocity.multiplyScalar(0.9);
 
-      uniforms.uTime.value = elapsed;
+      uniforms.uTime.value = elapsed * EFFECT.timeScale;
       if (particleMaterial) {
-        particleMaterial.uniforms.uTime.value = elapsed;
+        particleMaterial.uniforms.uTime.value = elapsed * EFFECT.particleTimeScale;
       }
 
       renderer.render(scene, camera);

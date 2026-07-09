@@ -9,6 +9,18 @@ const TOKEN_KEY = 'innergarden_access_token';
 const USER_KEY = 'innergarden_user';
 const REDIRECT_KEY = 'innergarden_redirect_after_login';
 
+function formatAuthError(payload, fallback) {
+  if (payload?.detail) {
+    return typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail);
+  }
+  if (payload?.message) return payload.message;
+  if (payload?.error?.message) return payload.error.message;
+  if (payload?.details?.fields?.length) {
+    return payload.details.fields.map((field) => `${field.field}: ${field.message}`).join('; ');
+  }
+  return fallback;
+}
+
 /**
  * 从 localStorage 获取存储的 token
  */
@@ -45,11 +57,20 @@ function saveSession(data) {
 /**
  * 清除本地认证会话
  */
-function clearSession() {
+export function clearSession() {
   window.localStorage.removeItem(TOKEN_KEY);
   window.localStorage.removeItem(USER_KEY);
   // 触发认证状态变化事件，让 App 组件更新
   window.dispatchEvent(new Event('auth-change'));
+}
+
+export function invalidateSession({ redirect = true } = {}) {
+  const currentHash = window.location.hash || '#/';
+  clearSession();
+  if (redirect && !currentHash.startsWith('#/login')) {
+    saveRedirectPath(currentHash);
+    window.location.hash = '#/login';
+  }
 }
 
 /**
@@ -82,7 +103,7 @@ export async function login(email, password) {
   const payload = await response.json();
 
   if (!response.ok) {
-    const message = payload.detail || payload.error?.message || '登录失败';
+    const message = formatAuthError(payload, '登录失败');
     throw new Error(message);
   }
 
@@ -106,7 +127,7 @@ export async function register(username, email, password) {
   const payload = await response.json();
 
   if (!response.ok) {
-    const message = payload.detail || payload.error?.message || '注册失败';
+    const message = formatAuthError(payload, '注册失败');
     throw new Error(message);
   }
 

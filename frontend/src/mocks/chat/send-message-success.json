@@ -1,0 +1,43 @@
+{
+  "success": true,
+  "data": {
+    "conversation": {
+      "id": 12,
+      "mode": "companion",
+      "title": "\u4eca\u5929\u611f\u89c9\u6709\u4e9b\u75b2\u60eb",
+      "anchor_diary_id": null,
+      "started_at": "2026-07-08T10:00:00Z",
+      "updated_at": "2026-07-08T10:00:02Z",
+      "message_count": 2
+    },
+    "user_message": {
+      "id": 31,
+      "conversation_id": 12,
+      "role": "user",
+      "content": "\u4eca\u5929\u611f\u89c9\u5f88\u7d2f",
+      "created_at": "2026-07-08T10:00:00Z"
+    },
+    "assistant_message": {
+      "id": 32,
+      "conversation_id": 12,
+      "role": "assistant",
+      "content": "\u542c\u8d77\u6765\u4f60\u4eca\u5929\u6d88\u8017\u4e86\u4e0d\u5c11\u7cbe\u529b\u3002",
+      "created_at": "2026-07-08T10:00:02Z"
+    },
+    "retrieval": {
+      "used": false,
+      "strategy": "none",
+      "total_found": 0,
+      "used_in_context": 0
+    },
+    "sources": [],
+    "safety": {
+      "flagged": false,
+      "level": "none",
+      "category": null,
+      "action": "none"
+    }
+  },
+  "message": "message_sent",
+  "request_id": "local"
+}

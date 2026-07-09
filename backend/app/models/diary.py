@@ -28,6 +28,8 @@ class User(Base):
 
     entries: Mapped[List["Entry"]] = relationship(back_populates="user")
     diaries: Mapped[List["Diary"]] = relationship(back_populates="user")
+    memory_cards: Mapped[List["MemoryCard"]] = relationship(back_populates="user")
+    uploaded_assets: Mapped[List["UploadedAsset"]] = relationship(back_populates="user")
 
     # Import Conversation to avoid circular import
     # from typing import TYPE_CHECKING
@@ -59,8 +61,8 @@ class EmotionAnalysis(Base):
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
     entry_id: Mapped[int] = mapped_column(ForeignKey("entries.id"), unique=True, index=True)
-    provider: Mapped[str] = mapped_column(String(50), default="local-rule")
-    model_name: Mapped[str] = mapped_column(String(100), default="minimal-backend-loop")
+    provider: Mapped[str] = mapped_column(String(50), default="llm")  # 更新为 LLM
+    model_name: Mapped[str] = mapped_column(String(100), default="deepseek-chat")  # 更新为 DeepSeek
     primary_emotion: Mapped[str] = mapped_column(String(30))
     secondary_emotions: Mapped[str] = mapped_column(Text, default="[]")
     emotion_score: Mapped[int] = mapped_column(Integer)
@@ -97,8 +99,43 @@ class Diary(Base):
     user: Mapped[User] = relationship(back_populates="diaries")
     entry: Mapped[Entry] = relationship(back_populates="diary")
     analysis: Mapped[EmotionAnalysis] = relationship(back_populates="diary")
+    memory_card: Mapped[Optional["MemoryCard"]] = relationship(back_populates="diary", uselist=False)
 
     # Import MessageSource to avoid circular import
     # from typing import TYPE_CHECKING
     # if TYPE_CHECKING:
     #     from .chat import MessageSource
+
+
+class MemoryCard(Base):
+    __tablename__ = "memory_cards"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    diary_id: Mapped[int] = mapped_column(ForeignKey("diaries.id"), unique=True, index=True)
+    cover_image_url: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
+    cover_prompt: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    emotion_label: Mapped[str] = mapped_column(String(30), default="calm")
+    emotion_color: Mapped[str] = mapped_column(String(40), default="#8fb8ff")
+    keywords_json: Mapped[str] = mapped_column(Text, default="[]")
+    conversation_summary: Mapped[Optional[str]] = mapped_column(Text, nullable=True)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
+    deleted_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+
+    user: Mapped[User] = relationship(back_populates="memory_cards")
+    diary: Mapped[Diary] = relationship(back_populates="memory_card")
+
+
+class UploadedAsset(Base):
+    __tablename__ = "uploaded_assets"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    original_filename: Mapped[str] = mapped_column(String(255))
+    stored_filename: Mapped[str] = mapped_column(String(255), unique=True)
+    content_type: Mapped[str] = mapped_column(String(100))
+    url: Mapped[str] = mapped_column(String(500))
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
+
+    user: Mapped[User] = relationship(back_populates="uploaded_assets")

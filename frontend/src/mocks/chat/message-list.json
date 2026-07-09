@@ -1,0 +1,32 @@
+{
+  "success": true,
+  "data": {
+    "messages": [
+      {
+        "message": {
+          "id": 31,
+          "conversation_id": 12,
+          "role": "user",
+          "content": "\u4eca\u5929\u611f\u89c9\u5f88\u7d2f",
+          "created_at": "2026-07-08T10:00:00Z"
+        },
+        "sources": []
+      },
+      {
+        "message": {
+          "id": 32,
+          "conversation_id": 12,
+          "role": "assistant",
+          "content": "\u542c\u8d77\u6765\u4f60\u4eca\u5929\u6d88\u8017\u4e86\u4e0d\u5c11\u7cbe\u529b\u3002",
+          "created_at": "2026-07-08T10:00:02Z"
+        },
+        "sources": []
+      }
+    ],
+    "page": 1,
+    "page_size": 50,
+    "total": 2
+  },
+  "message": "messages_retrieved",
+  "request_id": "local"
+}

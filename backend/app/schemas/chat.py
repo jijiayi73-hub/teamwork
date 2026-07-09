@@ -1,9 +1,9 @@
 """Chat API schemas for RAG-based conversation feature.
 
-All schemas follow the API contract defined in:
-docs/vibe-logs/log-07-rag-chat-api-design.md
+All schemas follow the frozen API contract defined in:
+docs/contracts/chat-api-v1.md
 
-API Contract Status: FROZEN (v1.2.1)
+API Contract Status: FROZEN (v1.0)
 """
 from __future__ import annotations
 

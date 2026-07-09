@@ -1,4 +1,4 @@
-import { getStoredToken, isAuthenticated } from './auth.js';
+import { getStoredToken, invalidateSession, isAuthenticated } from './auth.js';
 
 const API_BASE = '/api/v1';
 
@@ -30,6 +30,9 @@ export async function apiRequest(path, options = {}) {
 
   const payload = await response.json().catch(() => ({}));
   if (!response.ok) {
+    if (response.status === 401) {
+      invalidateSession();
+    }
     // 处理错误消息，避免 [object Object]
     let errorMessage = `Request failed: ${response.status}`;
     if (payload.detail) {
@@ -45,6 +48,53 @@ export async function apiRequest(path, options = {}) {
   return payload;
 }
 
+function extractErrorMessage(payload, fallback) {
+  if (payload?.detail) {
+    if (typeof payload.detail === 'string') return payload.detail;
+    return JSON.stringify(payload.detail);
+  }
+  if (payload?.message) return payload.message;
+  if (payload?.error?.message) return payload.error.message;
+  if (payload?.error) {
+    if (typeof payload.error === 'string') return payload.error;
+    return JSON.stringify(payload.error);
+  }
+  if (payload?.details?.fields?.length) {
+    return payload.details.fields.map((field) => `${field.field}: ${field.message}`).join('; ');
+  }
+  return fallback;
+}
+
+export async function uploadImage(file) {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('图片读取失败'));
+    reader.readAsDataURL(file);
+  });
+  return apiRequest('/uploads/images', {
+    method: 'POST',
+    body: JSON.stringify({
+      filename: file.name,
+      content_type: file.type,
+      data_url: dataUrl,
+    }),
+  });
+}
+
+export async function generateImage(payload) {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  return apiRequest('/images/generate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 /**
  * 健康检查
  */
@@ -55,18 +105,24 @@ export async function healthCheck() {
 /**
  * 创建日记条目
  * 需要用户已登录
+ * @param {string} rawContent - 原始内容
+ * @param {number} conversationId - 可选的对话 ID，用于获取对话上下文进行情绪分析
  */
-export async function createEntry(rawContent) {
+export async function createEntry(rawContent, conversationId = null) {
   if (!isAuthenticated()) {
     throw new Error('请先登录');
   }
+  const body = {
+    raw_content: rawContent,
+    input_type: 'text',
+    source_language: 'zh-CN',
+  };
+  if (conversationId) {
+    body.conversation_id = conversationId;
+  }
   return apiRequest('/entries', {
     method: 'POST',
-    body: JSON.stringify({
-      raw_content: rawContent,
-      input_type: 'text',
-      source_language: 'zh-CN',
-    }),
+    body: JSON.stringify(body),
   });
 }
 
@@ -117,79 +173,56 @@ export async function getStatsOverview() {
   return apiRequest('/stats/overview');
 }
 
-// Chat API functions
-// 这些函数将在后端 Chat API 实现后可用
-
-/**
- * 创建新对话
- * POST /api/v1/chat/conversations
- */
-export async function createConversation({ mode, title, anchor_diary_id }) {
+export async function createMemory(memory) {
   if (!isAuthenticated()) {
     throw new Error('请先登录');
   }
-  return apiRequest('/chat/conversations', {
+  return apiRequest('/memories', {
     method: 'POST',
-    body: JSON.stringify({ mode, title, anchor_diary_id }),
+    body: JSON.stringify(memory),
   });
 }
 
-/**
- * 获取对话列表
- * GET /api/v1/chat/conversations
- */
-export async function listConversations() {
+export async function listMemories(filters = {}) {
   if (!isAuthenticated()) {
     throw new Error('请先登录');
   }
-  return apiRequest('/chat/conversations');
+  const params = new URLSearchParams();
+  if (filters.emotion) params.set('emotion', filters.emotion);
+  if (filters.keyword) params.set('keyword', filters.keyword);
+  return apiRequest(`/memories${params.toString() ? `?${params.toString()}` : ''}`);
 }
 
-/**
- * 获取单个对话
- * GET /api/v1/chat/conversations/{id}
- */
-export async function getConversation(conversationId) {
+export async function getMemory(memoryId) {
   if (!isAuthenticated()) {
     throw new Error('请先登录');
   }
-  return apiRequest(`/chat/conversations/${conversationId}`);
+  return apiRequest(`/memories/${memoryId}`);
 }
 
-/**
- * 获取对话消息列表
- * GET /api/v1/chat/conversations/{id}/messages
- */
-export async function listMessages(conversationId) {
+export async function deleteMemory(memoryId) {
   if (!isAuthenticated()) {
     throw new Error('请先登录');
   }
-  return apiRequest(`/chat/conversations/${conversationId}/messages`);
+  return apiRequest(`/memories/${memoryId}`, { method: 'DELETE' });
 }
 
-/**
- * 发送消息
- * POST /api/v1/chat/messages
- */
-export async function sendMessage({ conversation_id, content }) {
+export async function pastSelfChat(memoryId, payload) {
   if (!isAuthenticated()) {
     throw new Error('请先登录');
   }
-  return apiRequest('/chat/messages', {
+  return apiRequest(`/memories/${memoryId}/past-self-chat`, {
     method: 'POST',
-    body: JSON.stringify({ conversation_id, content }),
+    body: JSON.stringify(payload),
   });
 }
 
-/**
- * 删除对话
- * DELETE /api/v1/chat/conversations/{id}
- */
-export async function deleteConversation(conversationId) {
+export async function getAdminStats() {
   if (!isAuthenticated()) {
     throw new Error('请先登录');
   }
-  return apiRequest(`/chat/conversations/${conversationId}`, {
-    method: 'DELETE',
-  });
+  return apiRequest('/admin/stats/charts');
 }
+
+// Chat API functions are exported from './chat.js'
+// Use: import { sendChatMessage, listConversations, ... } from './chat.js';

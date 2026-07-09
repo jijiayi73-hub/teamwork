@@ -1,5 +1,9 @@
 # Vibe Logs
 
+## Contract Boundary
+
+docs/contracts/chat-api-v1.md is the frozen Chat API contract. Vibe Logs keep design history, implementation notes, and debugging records only; they are not the current frontend/backend contract source of truth.
+
 ## 2026-07-08 最新补充
 
 ### Log 14 - Chat API 实现验证与自动化测试

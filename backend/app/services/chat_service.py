@@ -591,11 +591,12 @@ class ChatService:
         context_parts = []
         for retrieved in retrieved_diaries:
             diary = retrieved.diary
+            emotion = diary.analysis.primary_emotion if diary.analysis else "未知"
             context_parts.append(
                 f"日期：{diary.diary_date}\n"
                 f"标题：{diary.title}\n"
                 f"内容：{diary.content[:200]}...\n"
-                f"情绪：{diary.analysis.primary_emotion}"
+                f"情绪：{emotion}"
             )
 
         return "\n---\n".join(context_parts)
@@ -609,6 +610,7 @@ class ChatService:
         rank: int,
     ) -> None:
         """Create message source with snapshot fields."""
+        emotion = diary.analysis.primary_emotion if diary.analysis else "未知"
         source = MessageSource(
             message_id=message_id,
             diary_id=diary.id,
@@ -616,7 +618,7 @@ class ChatService:
             diary_date_snapshot=diary.diary_date,
             title_snapshot=diary.title,
             excerpt_snapshot=diary.content[:100],
-            emotion_label_snapshot=diary.analysis.primary_emotion,
+            emotion_label_snapshot=emotion,
             relevance_score=relevance_score,
             rank=rank,
         )
@@ -651,13 +653,14 @@ class ChatService:
         # Build sources list
         sources = []
         for retrieved in retrieved_diaries:
+            emotion = retrieved.diary.analysis.primary_emotion if retrieved.diary.analysis else "未知"
             sources.append(
                 MessageSourceSchema(
                     diary_id=retrieved.diary.id,
                     diary_date=retrieved.diary.diary_date,
                     title=retrieved.diary.title,
                     excerpt=retrieved.diary.content[:100],
-                    emotion_label=retrieved.diary.analysis.primary_emotion,
+                    emotion_label=emotion,
                     relevance_score=retrieved.relevance_score,
                     source_type=retrieved.source_type,  # type: ignore
                 )

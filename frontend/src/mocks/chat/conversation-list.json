@@ -1,0 +1,30 @@
+{
+  "success": true,
+  "data": {
+    "conversations": [
+      {
+        "id": 12,
+        "mode": "companion",
+        "title": "\u4eca\u5929\u611f\u89c9\u6709\u4e9b\u75b2\u60eb",
+        "anchor_diary_id": null,
+        "started_at": "2026-07-08T10:00:00Z",
+        "updated_at": "2026-07-08T10:00:02Z",
+        "message_count": 2
+      },
+      {
+        "id": 13,
+        "mode": "past_self",
+        "title": "\u548c 7 \u6708 1 \u65e5\u7684\u81ea\u5df1\u804a\u804a",
+        "anchor_diary_id": 42,
+        "started_at": "2026-07-08T11:00:00Z",
+        "updated_at": "2026-07-08T11:00:02Z",
+        "message_count": 2
+      }
+    ],
+    "page": 1,
+    "page_size": 20,
+    "total": 2
+  },
+  "message": "conversations_retrieved",
+  "request_id": "local"
+}

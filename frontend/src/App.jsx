@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useState } from 'react';
 import {
   createDiary,
   createEntry,
@@ -15,6 +15,7 @@ import LoginPage from './components/LoginPage';
 
 const DRAFT_KEY = 'mindful_memory_diary_draft';
 const LOCAL_MEMORIES_KEY = 'mindful_memory_diary_memories';
+const ParticleWaveHero = lazy(() => import('./components/ParticleWaveHero'));
 
 export default function App() {
   const route = useHashRoute();
@@ -149,10 +150,6 @@ function HomePage() {
             Mindful Memory Diary
           </h1>
           <p className="mt-5 text-lg text-[#e6eefc]/90 sm:text-xl">把今天的情绪，种成一座记忆花园</p>
-          <p className="mx-auto mt-6 max-w-2xl text-base leading-8 text-white/68 sm:text-lg">
-            Talk gently with AI, let your feelings settle into words, and keep each day as a quiet
-            bloom in your memory garden.
-          </p>
 
           <div className="mt-10 flex flex-col items-center justify-center gap-4 sm:flex-row">
             <a className="primary-action w-full sm:w-auto" href="#/ai-companion-chat">
@@ -269,7 +266,7 @@ function ChatPage() {
     if (!SpeechRecognition) {
       setText((current) => `${current}${current ? ' ' : ''}今天有一些说不清的感受，我想先慢慢放在这里。`);
       setMessages((current) => [...current, { content: '没关系，语音现在先用本地文字替代。你可以继续补一点点，我会跟着你的节奏。' }]);
-      setNote('当前浏览器不支持本地语音识别，已填入一段 mock 语音文本。');
+      setNote('当前浏览器不支持本地语音识别，已填入一段示例语音文本。');
       return;
     }
 
@@ -307,13 +304,18 @@ function ChatPage() {
 
   return (
     <section className="relative z-10 flex min-h-[calc(100vh-96px)] items-center justify-center px-5 pb-12 pt-4 lg:px-14">
-      {imagePreview && (
-        <div
-          aria-hidden="true"
-          className="chat-photo-backdrop"
-          style={{ backgroundImage: `url(${imagePreview})` }}
+      <Suspense fallback={null}>
+        <ParticleWaveHero
+          backgroundOpacity={0.62}
+          className="chat-particle-wave"
+          fit="cover"
+          imageUrl={imagePreview || undefined}
+          interactive
+          particleSize={imagePreview ? 16 : 14}
+          waveSpeed={1.35}
+          waveStrength={0.28}
         />
-      )}
+      </Suspense>
 
       <div className="chat-stage">
         <div className="text-center">
@@ -392,41 +394,24 @@ function DiaryResultPage() {
       return;
     }
     setIsSaving(true);
-    setStatus('正在通过 POST /api/v1/diaries 保存日记...');
+    setStatus('正在保存日记...');
 
     try {
-      let entryId = Number(draft.entry_id);
-      if (!Number.isInteger(entryId) || entryId <= 0) {
-        const entryResponse = await createEntry(draft.raw_content || content);
-        entryId = entryResponse.data.id;
-        window.localStorage.setItem(
-          DRAFT_KEY,
-          JSON.stringify({
-            ...draft,
-            entry_id: entryId,
-            title,
-            content,
-            analysis: entryResponse.data.analysis || draft.analysis,
-          }),
-        );
-      }
-
       const response = await createDiary({
-        entry_id: entryId,
+        entry_id: draft.entry_id,
         title,
         content,
         diary_date: new Date().toISOString().slice(0, 10),
         is_favorite: false,
       });
       rememberLocalDiary(response.data);
-      setStatus('保存成功，已写入真实后端 /api/v1/diaries。');
+      setStatus('保存成功。');
       window.location.hash = '#/memory-garden';
     } catch (error) {
+      // 改进错误消息显示
       const errorDetail = error.message || (typeof error === 'string' ? error : JSON.stringify(error));
+      setStatus(`保存失败：${errorDetail}`);
       console.error('保存日记失败:', error);
-      const fallbackDiary = rememberLocalDiary(buildSavedLocalDiary(draft, title, content));
-      setStatus(`已保存到本地 Memory Garden，后端暂时不可用：${errorDetail}`);
-      window.location.hash = `#/memory-garden/${fallbackDiary.id}`;
     } finally {
       setIsSaving(false);
     }
@@ -436,7 +421,7 @@ function DiaryResultPage() {
     <PageShell
       eyebrow="Diary Result"
       title="把倾诉整理成日记"
-      subtitle="这个页面使用 /api/v1/entries 返回的草稿；保存按钮已接 /api/v1/diaries。"
+      subtitle="这里可以确认和整理今天的日记内容。"
     >
       <div className="grid gap-6 lg:grid-cols-[1fr_320px]">
         <section className="panel space-y-4">
@@ -444,7 +429,7 @@ function DiaryResultPage() {
             <EmptyState
               actionHref="#/ai-companion-chat"
               actionText="回到对话页"
-              text="还没有日记草稿。请先发送一段文字，让后端生成 entry 和 draft diary。"
+              text="还没有日记草稿。请先完成一段对话。"
             />
           ) : (
             <>
@@ -459,8 +444,8 @@ function DiaryResultPage() {
         <aside className="panel space-y-4">
           <p className="text-sm text-white/64">今日情绪</p>
           <p className="font-display text-4xl text-white">{draft?.analysis?.primary_emotion || 'calm'}</p>
-          <p className="text-sm leading-7 text-white/64">{draft?.analysis?.summary || '等待后端分析结果。'}</p>
-          <StatusText>{status || '保存会创建真实 diary；记忆卡片 API 尚未实现。'}</StatusText>
+          <p className="text-sm leading-7 text-white/64">{draft?.analysis?.summary || '等待分析结果。'}</p>
+          {status && <StatusText>{status}</StatusText>}
         </aside>
       </div>
     </PageShell>
@@ -486,7 +471,7 @@ function buildLocalDraft(rawContent, imagePreview) {
     content: `今天，我把一些还没有完全整理好的感受留在这里。\n\n${rawContent}\n\n也许它们还不是答案，但它们已经让我更靠近此刻的自己一点。`,
     analysis: {
       primary_emotion: 'calm',
-      summary: '这是一段本地 mock 的温柔整理，用来保证前端演示流程可以继续。',
+      summary: '这是一段温柔整理，可以帮助你继续完成日记。',
       suggestion: '先不用急着判断这些感受，只要把它们稳稳放下。',
       emotion_score: 58,
       risk_level: 'low',
@@ -500,21 +485,16 @@ function buildLocalDraft(rawContent, imagePreview) {
 function MemoryGardenPage() {
   const [diaries, setDiaries] = useState([]);
   const [stats, setStats] = useState(null);
-  const [status, setStatus] = useState('正在读取 /api/v1/diaries...');
+  const [status, setStatus] = useState('');
 
   async function loadGarden() {
-    setStatus('正在读取 /api/v1/diaries 和 /api/v1/stats/overview...');
+    setStatus('');
     try {
       const [diaryResponse, statsResponse] = await Promise.all([listDiaries(), getStatsOverview()]);
-      const mergedDiaries = mergeLocalDiaries(diaryResponse.data || []);
-      setDiaries(mergedDiaries);
-      setStats({ ...(statsResponse.data || {}), total_diaries: mergedDiaries.length });
-      setStatus('Memory Garden 已接入真实 diary 列表接口。');
+      setDiaries(diaryResponse.data || []);
+      setStats(statsResponse.data || null);
     } catch (error) {
-      const localDiaries = readLocalDiaries();
-      setDiaries(localDiaries);
-      setStats({ total_diaries: localDiaries.length });
-      setStatus(`Memory Garden 已显示本地保存的日记，后端读取失败：${error.message}`);
+      setStatus(`记忆花园暂时没有加载成功：${error.message}`);
     }
   }
 
@@ -550,7 +530,7 @@ function MemoryGardenPage() {
           </div>
 
           <p className="memory-garden-total">
-            <span>Total Diaries</span>
+            <span>日记总数</span>
             <span aria-hidden="true">·</span>
             <strong>{stats?.total_diaries ?? diaries.length}</strong>
           </p>
@@ -559,7 +539,7 @@ function MemoryGardenPage() {
         <section className="memory-garden-list" aria-label="Memory Garden diary list">
           {diaries.length === 0 ? (
             <div className="memory-garden-empty">
-              <p>后端里还没有保存的日记。</p>
+              <p>还没有保存的日记。</p>
               <a className="memory-garden-empty-action" href="#/ai-companion-chat">
                 开始记录今天
               </a>
@@ -582,7 +562,7 @@ function MemoryGardenPage() {
           )}
         </section>
 
-        <p className="memory-garden-status">{status}</p>
+        {status && <p className="memory-garden-status">{status}</p>}
       </div>
     </section>
   );
@@ -611,7 +591,7 @@ function RefreshIcon() {
 
 function MemoryDetailPage({ diaryId }) {
   const [diary, setDiary] = useState(null);
-  const [status, setStatus] = useState('正在读取 /api/v1/diaries/{id}...');
+  const [status, setStatus] = useState('正在读取这篇日记...');
   const [pastSelfReply, setPastSelfReply] = useState('');
 
   useEffect(() => {
@@ -619,15 +599,9 @@ function MemoryDetailPage({ diaryId }) {
       try {
         const response = await getDiary(diaryId);
         setDiary(response.data);
-        setStatus('详情已接入真实后端 /api/v1/diaries/{id}。');
+        setStatus('');
       } catch (error) {
-        const localDiary = findLocalDiary(diaryId);
-        if (localDiary) {
-          setDiary(localDiary);
-          setStatus(`详情已显示本地保存的日记，后端读取失败：${error.message}`);
-        } else {
-          setStatus(`读取失败：${error.message}`);
-        }
+        setStatus(`这篇日记暂时没有加载成功：${error.message}`);
       }
     }
     loadDiary();
@@ -635,14 +609,14 @@ function MemoryDetailPage({ diaryId }) {
 
   function handlePastSelfChat() {
     setPastSelfReply('那天的我想说：谢谢你回来看我。那一刻不一定完美，但它已经被好好保存下来了。');
-    setStatus('Past Self Chat 当前使用本地 mock；后端缺少 /api/v1/memories/{id}/past-self-chat。');
+    setStatus('');
   }
 
   return (
     <PageShell
       eyebrow="Memory Detail"
       title={diary?.title || '记忆详情'}
-      subtitle="详情读取真实 diary；过去的我对话接口尚未实现，暂用本地 mock。"
+      subtitle="这里展示保存下来的日记，也可以和那天的自己对话。"
     >
       {!diary ? (
         <EmptyState actionHref="#/memory-garden" actionText="返回 Memory Garden" text={status} />
@@ -666,7 +640,7 @@ function MemoryDetailPage({ diaryId }) {
           </aside>
         </div>
       )}
-      <StatusText>{status}</StatusText>
+      {status && <StatusText>{status}</StatusText>}
     </PageShell>
   );
 }
@@ -676,27 +650,27 @@ function AboutPage() {
   const currentUser = getCurrentUser();
 
   async function handleHealthCheck() {
-    setStatus('正在调用 GET /api/v1/health...');
+    setStatus('正在检查服务状态...');
     try {
       const response = await healthCheck();
-      setStatus(`后端健康检查成功：${response.status || response.data?.status || 'ok'}`);
+      setStatus(`服务状态正常：${response.status || response.data?.status || 'ok'}`);
     } catch (error) {
-      setStatus(`后端健康检查失败：${error.message}`);
+      setStatus(`服务暂时不可用：${error.message}`);
     }
   }
 
   return (
     <PageShell
       eyebrow="About"
-      title="接口对接状态"
-      subtitle="这里用于演示当前按钮能接入哪些真实后端 API，以及哪些能力仍是待实现接口。"
+      title="关于 Inner Garden"
+      subtitle="这里保留服务状态检查，同时展示当前登录信息。"
     >
       <section className="panel space-y-5">
         <p className="text-white/70">当前用户：{currentUser?.email || '尚未登录'}</p>
         <button className="primary-action" onClick={handleHealthCheck} type="button">
-          检查后端健康状态
+          检查服务状态
         </button>
-        <StatusText>{status || '可用 API：/auth、/entries、/diaries、/stats、/admin。'}</StatusText>
+        {status && <StatusText>{status}</StatusText>}
       </section>
     </PageShell>
   );
@@ -752,80 +726,9 @@ function getLocalMemoryCount() {
 
 function rememberLocalDiary(diary) {
   const memories = readJson(LOCAL_MEMORIES_KEY);
-  const currentMemories = normalizeLocalDiaries(Array.isArray(memories) ? memories : []);
-  const diaryKey = getDiaryDedupeKey(diary);
-  const nextMemories = normalizeLocalDiaries([
-    diary,
-    ...currentMemories.filter((memory) => getDiaryDedupeKey(memory) !== diaryKey),
-  ]);
+  const nextMemories = Array.isArray(memories) ? memories : [];
+  nextMemories.unshift({ id: diary.id, title: diary.title, diary_date: diary.diary_date });
   window.localStorage.setItem(LOCAL_MEMORIES_KEY, JSON.stringify(nextMemories));
-  return diary;
-}
-
-function buildSavedLocalDiary(draft, title, content) {
-  const now = new Date().toISOString();
-  const stableId = getLocalDiaryId(draft, title, content);
-  return {
-    id: stableId,
-    entry_id: draft?.entry_id || `local-entry-${Date.now()}`,
-    analysis_id: draft?.analysis?.id || `local-analysis-${Date.now()}`,
-    title,
-    content,
-    diary_date: now.slice(0, 10),
-    is_favorite: false,
-    visibility: 'private',
-    created_at: now,
-    updated_at: now,
-    analysis: draft?.analysis || {
-      primary_emotion: 'memory',
-      suggestion: '',
-      summary: '',
-    },
-  };
-}
-
-function readLocalDiaries() {
-  const memories = readJson(LOCAL_MEMORIES_KEY);
-  const normalizedMemories = normalizeLocalDiaries(Array.isArray(memories) ? memories : []);
-  if (Array.isArray(memories) && normalizedMemories.length !== memories.length) {
-    window.localStorage.setItem(LOCAL_MEMORIES_KEY, JSON.stringify(normalizedMemories));
-  }
-  return normalizedMemories;
-}
-
-function mergeLocalDiaries(diaries) {
-  const remoteIds = new Set(diaries.map((diary) => String(diary.id)));
-  const localOnly = readLocalDiaries().filter((diary) => !remoteIds.has(String(diary.id)));
-  return [...localOnly, ...diaries];
-}
-
-function findLocalDiary(diaryId) {
-  return readLocalDiaries().find((diary) => String(diary.id) === String(diaryId)) || null;
-}
-
-function getLocalDiaryId(draft, title, content) {
-  if (draft?.saved_diary_id) return draft.saved_diary_id;
-  if (draft?.entry_id) return `local-${draft.entry_id}`;
-  return `local-${stableMemoryKey(title, new Date().toISOString().slice(0, 10), content)}`;
-}
-
-function getDiaryDedupeKey(diary) {
-  if (diary?.entry_id) return `entry:${diary.entry_id}`;
-  return `content:${stableMemoryKey(diary?.title, diary?.diary_date, diary?.content)}`;
-}
-
-function stableMemoryKey(title, diaryDate, content) {
-  return [title || '', diaryDate || '', content || ''].join('|').trim();
-}
-
-function normalizeLocalDiaries(diaries) {
-  const seen = new Set();
-  return diaries.filter((diary) => {
-    const key = getDiaryDedupeKey(diary);
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
 }
 
 function readJson(key) {
