@@ -46,6 +46,9 @@ export function getStoredUser() {
  * 保存认证会话到 localStorage
  */
 function saveSession(data) {
+  if (!data?.access_token || !data?.user) {
+    throw new Error('服务器返回的登录数据不完整，请稍后重试');
+  }
   const { access_token, user } = data;
   window.localStorage.setItem(TOKEN_KEY, access_token);
   window.localStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -100,7 +103,7 @@ export async function login(usernameOrEmail, password) {
     body: JSON.stringify({ username_or_email: usernameOrEmail, password }),
   });
 
-  const payload = await response.json();
+  const payload = await readJsonResponse(response, fallback);
 
   if (!response.ok) {
     // 隐藏技术细节，统一返回简体中文错误信息
@@ -118,13 +121,14 @@ export async function login(usernameOrEmail, password) {
  * @returns {Promise<{access_token: string, user: object}>}
  */
 export async function register(username, email, password) {
+  const fallback = '注册失败，请确认后端服务已启动并稍后重试';
   const response = await fetch('/api/v1/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password }),
   });
 
-  const payload = await response.json();
+  const payload = await readJsonResponse(response, fallback);
 
   if (!response.ok) {
     // 隐藏技术细节，统一返回简体中文错误信息
