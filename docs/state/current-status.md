@@ -1,5 +1,65 @@
 # Inner Garden Current Status
 
+## 2026-07-10 Update: TASK-037 AI朗读功能（火山引擎豆包TTS）
+
+实现AI文本朗读功能，在每个AI生成的文本气泡后添加朗读按钮，点击后调用火山引擎豆包TTS API朗读内容。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 后端TTS协议模块 | Implemented | `volcengine_tts/` 目录完整（protocol, events, exceptions, models, client） |
+| TTS WebSocket API | Implemented | `ws://localhost/api/v1/tts/stream` 双向流式音频传输 |
+| 前端TTS组件 | Implemented | ChatPage添加TTS按钮（♪图标 + "朗读"/"停止"） |
+| AudioContext播放 | Implemented | PCM 24000Hz音频流式播放 |
+| 环境变量配置 | Implemented | `.env.example` 添加TTS配置项 |
+| 前端构建 | Passing | `npm run build` → ✓ built in 2.12s |
+| 后端导入 | Passing | TTS模块导入验证通过 |
+
+**Validation:**
+```bash
+# 前端构建
+cd frontend
+npm run build
+# Result: ✓ built in 2.12s
+
+# 后端TTS模块
+cd backend
+py -c "from app.services.volcengine_tts import VolcengineTTSClient, TTSConfig; print('TTS module imports OK')"
+# Result: TTS module imports OK
+
+# 主应用导入
+py -c "from app.main import app; print('Main app imports OK')"
+# Result: Main app imports OK
+```
+
+**Changes:**
+- **Backend**: 新建 `backend/app/services/volcengine_tts/` - 完整TTS协议实现
+- **Backend**: 新建 `backend/app/routers/tts.py` - TTS WebSocket API
+- **Backend**: 更新 `backend/app/config.py` - 添加TTS配置
+- **Backend**: 更新 `backend/app/main.py` - 注册TTS路由
+- **Frontend**: 更新 `frontend/src/AppFixed.jsx` - 添加TTS按钮和音频播放
+- **Styles**: 更新 `frontend/src/styles.css` - 添加TTS按钮样式
+
+**Expected behavior:**
+- 每个AI消息气泡后显示朗读按钮
+- 点击按钮连接后端TTS WebSocket
+- 流式播放AI消息的语音朗读
+- 支持播放/停止控制
+- 使用PCM格式，24000Hz采样率
+
+**环境变量:**
+```bash
+VOLCENGINE_TTS_API_KEY=your-api-key-here
+VOLCENGINE_TTS_RESOURCE_ID=seed-tts-2.0
+VOLCENGINE_TTS_SPEAKER=zh_female_qingxin
+```
+
+**API Endpoints:**
+- `ws://localhost/api/v1/tts/stream` - TTS流式音频（需要认证）
+- `GET /api/v1/tts/health` - TTS健康检查（公开）
+- `GET /api/v1/tts/speakers` - 可用音色列表（公开）
+
+---
+
 ## 2026-07-10 Update: TASK-036 日记生成 Fallback 只记录用户对话
 
 修复日记生成 fallback 逻辑，当 LLM 无法生成足够的日记内容时，只记录用户对话内容，不包含 AI 回复。

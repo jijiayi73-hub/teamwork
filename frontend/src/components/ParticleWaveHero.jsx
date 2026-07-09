@@ -218,6 +218,7 @@ export default function ParticleWaveHero({
 
       particleMaterial = createParticleMaterial();
       particles = new THREE.Points(geometry, particleMaterial);
+      particles.renderOrder = 1; // 渲染顺序：粒子后渲染，覆盖背景
       scene.add(particles);
       animate();
     }
@@ -257,6 +258,7 @@ export default function ParticleWaveHero({
 
       particleMaterial = createParticleMaterial();
       particles = new THREE.Points(geometry, particleMaterial);
+      particles.renderOrder = 1; // 渲染顺序：粒子后渲染，覆盖背景
       scene.add(particles);
       animate();
     }
@@ -293,6 +295,7 @@ export default function ParticleWaveHero({
 
         backgroundPlane = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
         backgroundPlane.position.z = -0.25;
+        backgroundPlane.renderOrder = 0; // 渲染顺序：背景先渲染
         scene.add(backgroundPlane);
 
         const sampleWidth = 300;

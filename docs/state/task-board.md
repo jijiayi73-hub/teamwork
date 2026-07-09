@@ -1,5 +1,167 @@
 # Inner Garden Task Board
 
+## 2026-07-10 Task Update: TASK-038 记忆卡片数据生成
+
+### TASK-038: 为test1用户生成记忆卡片数据
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+将test1用户的对话数据转换为日记和记忆卡片，使其能在Memory Garden和Monthly Report中显示。
+
+#### 实现内容
+1. **记忆卡片生成脚本** - 创建 `scripts/generate-memory-cards.py`
+   - 从对话中提取用户消息
+   - 创建Entry → Diary → Memory Card
+
+2. **数据流程**:
+   ```
+   Conversation → Entry → Diary → Memory Card
+   ```
+
+3. **测试数据**:
+   - 19个记忆卡片
+   - 日期范围: 2026-06-01 至 2026-06-20
+   - 多种情绪: calm, happy, anxious, sad, neutral
+
+#### 验证结果
+```bash
+py scripts/generate-memory-cards.py
+# ✅ 19个记忆卡片创建成功
+
+curl https://jijiayi.online/api/v1/memories
+# ✅ 19个记忆卡片正常返回
+```
+
+#### 数据统计
+| 指标 | 值 |
+|------|------|
+| 记忆卡片数量 | 19 |
+| 日期范围 | 2026-06-01 至 2026-06-20 |
+| 情绪类型 | 5种 |
+
+#### 文档
+- `scripts/generate-memory-cards.py` - 记忆卡片生成脚本
+
+---
+
+## 2026-07-10 Task Update: TASK-037 AI朗读功能（火山引擎豆包TTS）
+
+### TASK-037: AI文本朗读功能
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+实现AI文本朗读功能，在每个AI生成的文本气泡后添加朗读按钮（类似"）））"样式），点击后调用火山引擎豆包TTS API朗读内容。
+
+#### 实现内容
+1. **后端TTS协议模块** - 创建完整的火山引擎豆包双向流式TTS实现
+   - `protocol.py` - 二进制帧编码/解析（大端序，4字节协议头）
+   - `events.py` - 事件常量定义（StartConnection, StartSession, TaskRequest等）
+   - `exceptions.py` - TTS专用异常类（ConnectionError, SessionError等）
+   - `models.py` - TTS数据模型（TTSConfig, TTSRequest, SessionInfo等）
+   - `client.py` - VolcengineTTSClient WebSocket客户端
+
+2. **后端TTS API** - FastAPI WebSocket端点
+   - `/api/v1/tts/stream` - 双向WebSocket流式音频传输
+   - `/api/v1/tts/health` - TTS服务健康检查
+   - `/api/v1/tts/speakers` - 可用音色列表
+
+3. **配置更新** - 添加TTS环境变量配置
+   - `VOLCENGINE_TTS_API_KEY` - API密钥（必需）
+   - `VOLCENGINE_TTS_RESOURCE_ID` - 资源ID（默认seed-tts-2.0）
+   - `VOLCENGINE_TTS_SPEAKER` - 默认音色
+   - `VOLCENGINE_TTS_ENDPOINT` - WebSocket端点
+
+4. **前端TTS组件** - 添加朗读按钮和音频播放
+   - TTS按钮组件（♪图标 + "朗读"/"停止"文字）
+   - WebSocket客户端连接管理
+   - AudioContext音频播放（PCM 24000Hz）
+   - 播放状态管理（ttsPlayingIndex）
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| TTS协议模块 | 新建 | `backend/app/services/volcengine_tts/` |
+| TTS API路由 | 新建 | `backend/app/routers/tts.py` |
+| 配置更新 | 更新 | `backend/app/config.py` |
+| 主应用 | 注册TTS路由 | `backend/app/main.py` |
+| 环境变量 | 更新 | `backend/.env.example` |
+| 前端TTS组件 | 更新 | `frontend/src/AppFixed.jsx` |
+| CSS样式 | 添加TTS按钮样式 | `frontend/src/styles.css` |
+
+#### 验证
+```bash
+# 后端导入验证
+cd backend
+py -c "from app.services.volcengine_tts import VolcengineTTSClient, TTSConfig; print('OK')"
+# Result: OK
+
+# 主应用导入验证
+py -c "from app.main import app; print('OK')"
+# Result: OK
+
+# 前端构建验证
+cd frontend
+npm run build
+# Result: ✓ built in 2.12s
+```
+
+#### API / 数据库影响
+- **新增 WebSocket 端点**:
+  - `ws://localhost/api/v1/tts/stream` - TTS流式音频（需要认证）
+  - `GET /api/v1/tts/health` - 健康检查（公开）
+  - `GET /api/v1/tts/speakers` - 音色列表（公开）
+- **数据库**: 无影响
+- **环境变量**: 需要配置 `VOLCENGINE_TTS_API_KEY`
+
+#### 功能说明
+- 每个AI消息气泡后显示朗读按钮
+- 点击按钮连接后端TTS WebSocket
+- 流式播放AI消息的语音朗读
+- 支持播放/停止控制
+- 使用PCM格式，24000Hz采样率，适合实时浏览器播放
+
+#### 环境变量配置
+```bash
+# 必需配置
+VOLCENGINE_TTS_API_KEY=your-api-key-here
+
+# 可选配置（有默认值）
+VOLCENGINE_TTS_RESOURCE_ID=seed-tts-2.0
+VOLCENGINE_TTS_SPEAKER=zh_female_qingxin
+VOLCENGINE_TTS_ENDPOINT=wss://openspeech.bytedance.com/api/v3/tts/bidirection
+```
+
+#### 常用音色
+- `zh_female_qingxin` - 女声清新（推荐）
+- `zh_female_wanxiaomei` - 女声婉小妹
+- `zh_male_zhiboshenquan` - 男声之博深情
+- `zh_male_zhiboyangguang` - 男声之博阳光
+- `zh_female_qiaoke` - 女声可可
+- `zh_male_wukong` - 男声悟空
+
+#### 文档
+- `CLAUDE.md` - 火山引擎TTS完整开发文档
+
+#### 注意事项
+- 需要从火山引擎控制台获取API Key
+- TTS功能需要配置 `VOLCENGINE_TTS_API_KEY` 才能使用
+- 前端使用Web Audio API播放PCM音频
+- 浏览器需要支持WebSocket和Web Audio API
+
+---
+
 ## 2026-07-10 Task Update: TASK-036 日记生成 Fallback 只记录用户对话
 
 ### TASK-036: 日记生成中纯用户内容 Fallback

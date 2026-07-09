@@ -146,8 +146,8 @@ class MemoryCardsGenerator:
             print(f"    ❌ Get messages error: {e}")
             return []
 
-    def create_diary_entry(self, content: str, title: str, conversation_id: int = None) -> dict:
-        """Create a diary entry"""
+    def create_entry(self, content: str, conversation_id: int = None) -> dict:
+        """Create an entry (returns entry with analysis)"""
         url = f"{self.base_url}/api/v1/entries"
         data = {
             "raw_content": content,
@@ -155,6 +155,62 @@ class MemoryCardsGenerator:
             "source_language": "zh-CN",
             "conversation_id": conversation_id
         }
+
+        try:
+            response = requests.post(url, json=data, headers=self.get_headers(), timeout=30)
+            if response.status_code in [200, 201]:
+                result = response.json()
+                return result["data"]
+            else:
+                print(f"    ❌ Create entry failed: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"    ❌ Create entry error: {e}")
+            return None
+
+    def create_diary_from_entry(self, entry_id: int, title: str, content: str, date_str: str) -> dict:
+        """Create a diary from an entry"""
+        url = f"{self.base_url}/api/v1/diaries"
+        data = {
+            "entry_id": entry_id,
+            "title": title,
+            "content": content,
+            "diary_date": date_str
+        }
+
+        try:
+            response = requests.post(url, json=data, headers=self.get_headers(), timeout=10)
+            if response.status_code in [200, 201]:
+                result = response.json()
+                return result["data"]
+            elif response.status_code == 409:
+                # Diary already exists, get existing diary
+                print(f"      ℹ️ Diary already exists for entry {entry_id}")
+                # Try to get the existing diary
+                return self.get_diary_by_entry_id(entry_id)
+            else:
+                print(f"      ❌ Create diary failed: {response.status_code}")
+                return None
+        except Exception as e:
+            print(f"      ❌ Create diary error: {e}")
+            return None
+
+    def get_diary_by_entry_id(self, entry_id: int) -> dict:
+        """Get diary by entry ID (for existing diaries)"""
+        url = f"{self.base_url}/api/v1/diaries"
+
+        try:
+            response = requests.get(url, headers=self.get_headers(), timeout=10)
+            if response.status_code in [200, 201]:
+                result = response.json()
+                diaries = result.get("data", [])
+                for diary in diaries:
+                    if diary.get("entry_id") == entry_id:
+                        return diary
+            return None
+        except Exception as e:
+            print(f"      ❌ Get diaries error: {e}")
+            return None
 
         try:
             response = requests.post(url, json=data, headers=self.get_headers(), timeout=30)
@@ -267,24 +323,41 @@ class MemoryCardsGenerator:
                 skip_count += 1
                 continue
 
-            # Create diary entry
-            print(f"    📝 Creating diary entry...")
-            diary_data = self.create_diary_entry(user_content, conv_title, conv_id)
+            # Step 1: Create entry
+            print(f"    📝 Creating entry...")
+            entry_data = self.create_entry(user_content, conv_id)
+            if not entry_data:
+                print(f"    ⚠️ Failed to create entry, skipping")
+                skip_count += 1
+                continue
+
+            entry_id = entry_data.get("id")
+            print(f"    ✅ Entry created: ID {entry_id}")
+
+            # Step 2: Create diary from entry
+            # Get diary content from entry analysis
+            diary_content = entry_data.get("draft_content", user_content)
+            diary_title = entry_data.get("draft_title", conv_title)
+            if not diary_title:
+                diary_title = DAILY_TOPICS[day_index]
+
+            print(f"      📖 Creating diary from entry...")
+            diary_data = self.create_diary_from_entry(entry_id, diary_title, diary_content, date_str)
             if not diary_data:
-                print(f"    ⚠️ Failed to create diary, skipping")
+                print(f"      ⚠️ Failed to create diary, skipping")
                 skip_count += 1
                 continue
 
             diary_id = diary_data.get("id")
-            print(f"    ✅ Diary created: ID {diary_id}")
+            print(f"      ✅ Diary created: ID {diary_id}")
 
             # Check if memory card already exists
             if diary_id in existing_diary_ids:
-                print(f"      ℹ️ Memory card already exists, skipping")
+                print(f"        ℹ️ Memory card already exists, skipping")
                 skip_count += 1
                 continue
 
-            # Generate emotion for memory card (rotate through emotions)
+            # Step 3: Generate emotion for memory card (rotate through emotions)
             emotions = ["calm", "happy", "anxious", "sad", "neutral"]
             emotion_colors = {
                 "calm": "#8fb8ff",
@@ -297,7 +370,7 @@ class MemoryCardsGenerator:
             emotion_color = emotion_colors.get(emotion, "#8fb8ff")
 
             # Create memory card
-            print(f"      🎴 Creating memory card...")
+            print(f"        🎴 Creating memory card...")
             memory_data = self.create_memory_card(diary_id, emotion, emotion_color)
 
             if memory_data:

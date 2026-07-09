@@ -151,7 +151,7 @@ function HomePage() {
         </div>
       </div>
       <p className="absolute bottom-6 left-1/2 w-full max-w-4xl -translate-x-1/2 px-5 text-center text-xs leading-6 text-white/50 sm:text-sm">
-        产品边界：Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。
+        Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。
       </p>
     </section>
   );
@@ -539,6 +539,9 @@ function ChatPage() {
           </div>
         </section>
       </div>
+      <p className="absolute bottom-6 left-1/2 w-full max-w-4xl -translate-x-1/2 px-5 text-center text-xs leading-6 text-white/50 sm:text-sm">
+        Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。
+      </p>
     </section>
   );
 }
@@ -762,6 +765,7 @@ function DiaryResultPage() {
           {status && <StatusText>{status}</StatusText>}
         </aside>
       </div>
+      <p className="mt-8 text-center text-xs leading-6 text-white/50">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
     </PageShell>
   );
 }
@@ -837,6 +841,7 @@ function MemoryGardenPage() {
           )}
         </section>
         {status && <p className="memory-garden-status">{status}</p>}
+        <p className="mt-6 text-center text-xs leading-6 text-white/50">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
       </div>
     </section>
   );
@@ -904,6 +909,7 @@ function MemoryDetailPage({ memoryId }) {
         </div>
       )}
       {status && <StatusText>{status}</StatusText>}
+      <p className="mt-8 text-center text-xs leading-6 text-white/50">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
     </PageShell>
   );
 }
@@ -1606,7 +1612,7 @@ function AboutPage() {
 
           {/* Footer */}
           <div className="about-footer">
-            <p>产品边界：Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
+            <p>Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
           </div>
         </div>
       </div>

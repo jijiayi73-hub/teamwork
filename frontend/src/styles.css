@@ -1386,7 +1386,7 @@ main:has(.liquid-memory-background) .memory-card:hover {
 }
 
 .monthly-report-weekdays {
-  gap: 7px;
+  gap: 4px;
   margin-bottom: 8px;
 }
 
@@ -1399,7 +1399,7 @@ main:has(.liquid-memory-background) .memory-card:hover {
 }
 
 .monthly-report-calendar {
-  gap: 7px;
+  gap: 4px;
 }
 
 .monthly-report-day {
@@ -1407,12 +1407,12 @@ main:has(.liquid-memory-background) .memory-card:hover {
   grid-template-rows: 22px 1fr;
   width: 100%;
   min-width: 0;
-  aspect-ratio: 16 / 18;
+  aspect-ratio: 1 / 1;
   place-items: start center;
   border: 1px solid rgba(255, 255, 255, 0.12);
   border-radius: 8px;
   background: rgba(255, 255, 255, 0.04);
-  padding: 8px 4px 6px;
+  padding: 6px 3px 4px;
   color: #ffffff;
   cursor: pointer;
   transition:
