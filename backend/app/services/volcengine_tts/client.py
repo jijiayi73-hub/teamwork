@@ -159,7 +159,7 @@ class VolcengineTTSClient:
             self._ws = await asyncio.wait_for(
                 websockets.connect(
                     self.endpoint,
-                    extra_headers=headers,
+                    additional_headers=headers,
                     ping_interval=None,  # Disable auto-ping
                 ),
                 timeout=10.0,

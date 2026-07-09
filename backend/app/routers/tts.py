@@ -1,30 +1,27 @@
 """
-Volcengine TTS WebSocket Router
+Volcengine TTS Router
 
-FastAPI WebSocket端点，为前端提供TTS流式音频服务。
+FastAPI端点，为前端提供TTS音频服务。
+
+支持两种模式：
+1. HTTP POST 单向流式（推荐）：一次性文本转语音
+2. WebSocket 双向流式：实时流式输入输出
 
 Protocol:
-1. Frontend connects via WebSocket
-2. Frontend sends control messages (start, text, finish, cancel)
-3. Backend forwards to Volcengine TTS
-4. Backend streams audio back to frontend
-5. Connection is kept alive for multiple sessions
-
-WebSocket Message Format (JSON):
-- Client → Server: {"type": "start|text|finish|cancel", "text": "...", "speaker": "..."}
-- Server → Client: {"type": "session_started|sentence_start|sentence_end|finished|error", ...}
-- Audio: Binary frames (PCM audio data)
+- HTTP POST: Send text, receive complete audio
+- WebSocket: Maintain connection for multiple text-to-audio conversions
 """
 
 import asyncio
 import logging
 from typing import Optional
-from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends
-from fastapi.responses import JSONResponse
+from fastapi import APIRouter, WebSocket, WebSocketDisconnect, Depends, HTTPException
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 
 from app.services.volcengine_tts import (
     VolcengineTTSClient,
+    VolcengineTTSHttpClient,
     TTSConfig,
     TTSConnectionError,
     AuthenticationError,
@@ -72,6 +69,94 @@ async def tts_health_check():
     }
 
 
+class TTSSynthesizeRequest(BaseModel):
+    """Request model for HTTP TTS synthesis."""
+    text: str
+    speaker: Optional[str] = None
+    format: Optional[str] = "mp3"
+    sample_rate: Optional[int] = 24000
+    speed: Optional[float] = 1.0
+    volume: Optional[float] = 1.0
+
+
+@router.post("/tts/synthesize")
+async def tts_synthesize(request: TTSSynthesizeRequest):
+    """
+    HTTP POST endpoint for text-to-speech synthesis.
+
+    Uses unidirectional HTTP API (recommended for short text).
+    Returns complete audio data in the response.
+
+    Args:
+        request: TTS synthesis request with text and optional parameters
+
+    Returns:
+        Response with audio data (MP3 format by default)
+    """
+    if not settings.volcengine_tts_api_key:
+        raise HTTPException(
+            status_code=503,
+            detail="TTS service is not configured. Please set VOLCENGINE_TTS_API_KEY."
+        )
+
+    try:
+        # Use HTTP client for unidirectional synthesis
+        client = VolcengineTTSHttpClient(
+            api_key=settings.volcengine_tts_api_key,
+            resource_id="volc.service_type.10029",  # Use resource ID that works with HTTP API
+            config=TTSConfig(
+                speaker=request.speaker or settings.volcengine_tts_speaker,
+                format=request.format,
+                sample_rate=request.sample_rate,
+                speed=request.speed,
+                volume=request.volume,
+            ),
+        )
+
+        # Synthesize audio
+        audio_data = await client.synthesize(
+            text=request.text,
+            speaker=request.speaker or settings.volcengine_tts_speaker,
+            format=request.format,
+            sample_rate=request.sample_rate,
+            speed=request.speed,
+            volume=request.volume,
+        )
+
+        # Clean up
+        await client.close()
+
+        # Determine content type based on format
+        content_type_map = {
+            "mp3": "audio/mpeg",
+            "wav": "audio/wav",
+            "opus": "audio/opus",
+            "pcm": "audio/pcm",
+        }
+        content_type = content_type_map.get(request.format, "audio/mpeg")
+
+        return Response(
+            content=audio_data,
+            media_type=content_type,
+            headers={
+                "Content-Disposition": f"attachment; filename=\"tts.{request.format}\"",
+            }
+        )
+
+    except TTSConnectionError as e:
+        logger.error(f"TTS connection error: {e}")
+        raise HTTPException(
+            status_code=503,
+            detail=f"TTS service unavailable: {e}"
+        )
+    except Exception as e:
+        logger.error(f"TTS synthesis error: {e}")
+        raise HTTPException(
+            status_code=500,
+            detail=f"TTS synthesis failed: {e}"
+        )
+
+
 @router.get("/tts/speakers")
 async def list_speakers():
     """List available TTS speakers."""
@@ -85,7 +170,7 @@ async def list_speakers():
     }
 
 
-@router.websocket("/api/v1/tts/stream")
+@router.websocket("/tts/stream")
 async def tts_websocket(websocket: WebSocket):
     """
     TTS streaming WebSocket endpoint.

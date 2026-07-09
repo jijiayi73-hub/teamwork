@@ -20,6 +20,7 @@ Usage:
 """
 
 from .client import VolcengineTTSClient
+from .http_client import VolcengineTTSHttpClient
 from .models import (
     TTSConfig,
     TTSRequest,
@@ -68,6 +69,7 @@ from .protocol import build_frame, parse_frame, ParsedFrame
 __all__ = [
     # Client
     "VolcengineTTSClient",
+    "VolcengineTTSHttpClient",
     # Models
     "TTSConfig",
     "TTSRequest",
