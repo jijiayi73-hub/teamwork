@@ -1891,7 +1891,7 @@ function MonthlyReport() {
         </div>
 
         <footer className="monthly-report-footer">
-          <p className="monthly-report-note">产品边界：Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
+          <p className="monthly-report-note">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
           {status && <p className="monthly-report-status">{status}</p>}
         </footer>
       </div>
@@ -2374,6 +2374,7 @@ function PasswordResetPage({ token }) {
               返回登录
             </a>
           </div>
+          <p className="mt-6 text-center text-xs leading-6 text-white/40">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
         </div>
       </div>
     </main>
