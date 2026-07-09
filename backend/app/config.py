@@ -49,5 +49,4 @@ class Settings:
     volcengine_tts_app_id: str = getenv("VOLCENGINE_TTS_APP_ID", "")
     volcengine_tts_access_key: str = getenv("VOLCENGINE_TTS_ACCESS_KEY", "")
 
-
 settings = Settings()

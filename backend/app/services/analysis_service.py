@@ -1,7 +1,8 @@
 import json
-from typing import Literal
+from typing import TYPE_CHECKING, Literal
 
-from sqlalchemy.orm import Session
+if TYPE_CHECKING:
+    from sqlalchemy.orm import Session
 
 
 NEGATIVE_WORDS = ("难过", "焦虑", "累", "疲惫", "生气", "害怕", "压力", "失眠", "崩溃")
@@ -54,7 +55,6 @@ EMOTION_ANALYSIS_SYSTEM_PROMPT = """你是 Inner Garden 的对话结构化分析
   - 低落时："雨后才有彩虹"、"夜色终会过去"
   - 焦虑时："翻涌过后是平静"、"风暴前的宁静"
   - 中性时："平凡中的诗意"、"亦言亦思皆为序章"
-
 # diary_content 生成规则
 
 当用户消息和对话内容足够时，生成一篇结构化的日记叙述文：
@@ -70,6 +70,10 @@ EMOTION_ANALYSIS_SYSTEM_PROMPT = """你是 Inner Garden 的对话结构化分析
 - 开头：日期或时间背景（如"今天"、"这一天"）
 - 中间：用户表达的**具体内容**（用户说了什么、经历了什么、感受如何）
 - 结尾：用户表达的**期望或想法**（如果用户有表达，否则写一句温和的自我回应）
+
+示例格式：
+```
+x月x日
 
 示例格式：
 ```

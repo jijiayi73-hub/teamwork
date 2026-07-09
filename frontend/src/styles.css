@@ -1213,6 +1213,8 @@ main:has(.liquid-memory-background) .memory-card:hover {
   display: flex;
   flex-direction: column;
   width: min(90vw, 900px);
+  aspect-ratio: 16 / 9;
+  max-height: calc(100vh - 124px);
   padding: 1.2rem 1rem 0.9rem;
   border: 1px solid rgba(255, 255, 255, 0.16);
   border-radius: 28px;
