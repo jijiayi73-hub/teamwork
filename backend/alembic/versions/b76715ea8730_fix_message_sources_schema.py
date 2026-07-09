@@ -29,6 +29,23 @@ def upgrade() -> None:
 
     Since SQLite has limited ALTER TABLE support, we recreate the table.
     """
+    bind = op.get_bind()
+    inspector = sa.inspect(bind)
+    table_names = inspector.get_table_names()
+
+    if 'message_sources_new' in table_names:
+        op.drop_table('message_sources_new')
+
+    if 'message_sources' not in table_names:
+        return
+
+    existing_columns = {column['name'] for column in inspector.get_columns('message_sources')}
+    if 'excerpt_snapshot' in existing_columns and 'excerpt' not in existing_columns:
+        return
+
+    if 'excerpt' not in existing_columns:
+        raise RuntimeError("message_sources table is missing both excerpt and excerpt_snapshot columns")
+
     # Get existing data
     op.execute("""
         CREATE TABLE message_sources_new (

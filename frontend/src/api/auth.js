@@ -21,6 +21,24 @@ function formatAuthError(payload, fallback) {
   return fallback;
 }
 
+async function readJsonResponse(response, fallback) {
+  const text = await response.text();
+  if (!text) {
+    return {};
+  }
+
+  try {
+    return JSON.parse(text);
+  } catch {
+    if (!response.ok) {
+      return {
+        message: fallback,
+      };
+    }
+    throw new Error('服务器返回了无法解析的数据，请稍后重试');
+  }
+}
+
 /**
  * 从 localStorage 获取存储的 token
  */
@@ -46,6 +64,9 @@ export function getStoredUser() {
  * 保存认证会话到 localStorage
  */
 function saveSession(data) {
+  if (!data?.access_token || !data?.user) {
+    throw new Error('服务器返回的登录数据不完整，请稍后重试');
+  }
   const { access_token, user } = data;
   window.localStorage.setItem(TOKEN_KEY, access_token);
   window.localStorage.setItem(USER_KEY, JSON.stringify(user));
@@ -94,16 +115,17 @@ export function getCurrentUser() {
  * @returns {Promise<{access_token: string, user: object}>}
  */
 export async function login(email, password) {
+  const fallback = '登录失败，请确认后端服务已启动并稍后重试';
   const response = await fetch('/api/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
   });
 
-  const payload = await response.json();
+  const payload = await readJsonResponse(response, fallback);
 
   if (!response.ok) {
-    const message = formatAuthError(payload, '登录失败');
+    const message = formatAuthError(payload, fallback);
     throw new Error(message);
   }
 
@@ -118,16 +140,17 @@ export async function login(email, password) {
  * @returns {Promise<{access_token: string, user: object}>}
  */
 export async function register(username, email, password) {
+  const fallback = '注册失败，请确认后端服务已启动并稍后重试';
   const response = await fetch('/api/v1/auth/register', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ username, email, password }),
   });
 
-  const payload = await response.json();
+  const payload = await readJsonResponse(response, fallback);
 
   if (!response.ok) {
-    const message = formatAuthError(payload, '注册失败');
+    const message = formatAuthError(payload, fallback);
     throw new Error(message);
   }
 
