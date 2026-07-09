@@ -45,6 +45,7 @@ Recognize these internal modes:
 - `handoff`: take over or hand off a task.
 - `document`: update docs, ADRs, or Vibe Logs.
 - `release`: pre-merge acceptance review.
+- `deploy`: deploy to VPS production environment.
 
 If the user does not specify a mode, infer it from wording. Before editing business code, explicitly state that the task is in `implement` or `debug` mode.
 
@@ -62,6 +63,7 @@ The orchestrator may call these internal modules. They are not public commands:
 - `modules/security-review.md`
 - `modules/docs-vibe-workflow.md`
 - `modules/release-review.md`
+- `modules/deployment-workflow.md`
 
 ## Mandatory Workflow
 
@@ -165,6 +167,7 @@ Route automatically:
 - login, permissions, secrets, privacy: `modules/security-review.md`
 - docs, Vibe Logs, README: `modules/docs-vibe-workflow.md`
 - pre-merge checks: `modules/release-review.md`
+- VPS deployment, code updates, container rebuilds: `modules/deployment-workflow.md`
 
 One task may use multiple modules.
 

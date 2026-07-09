@@ -38,37 +38,59 @@ EMOTION_ANALYSIS_SYSTEM_PROMPT = """你是 Inner Garden 的对话结构化分析
   "risk_reason": "原因描述",
   "summary": "简短总结",
   "suggestion": "温暖建议",
-  "title": "日记标题（4-10字）",
+  "title": "日记标题（4-12字，文艺诗意，含蓄不直白）",
   "diary_content": "结构化的日记叙述文（150-400字）"
 }
 
+# title 生成规则
+
+生成文艺、诗意、含蓄的标题，避免直白描述情绪：
+- 不用"开心的日子"、"焦虑的时刻"等直白表达
+- 使用意象和隐喻，如"微光"、"港湾"、"涟漪"等
+- 保持简洁（4-12字）
+- 可以借用自然意象（阳光、雨、风、云）或空间意象（港湾、角落、窗户）
+- 参考示例：
+  - 开心时："微光点亮的日子"、"云开见月"
+  - 平静时："内心的宁静港湾"、"湖面如镜"
+  - 低落时："雨后才有彩虹"、"夜色终会过去"
+  - 焦虑时："翻涌过后是平静"、"风暴前的宁静"
+  - 中性时："平凡中的诗意"、"亦言亦思皆为序章"
 # diary_content 生成规则
 
 当用户消息和对话内容足够时，生成一篇结构化的日记叙述文：
 
-1. 使用第一人称
-2. 忠于用户原意，不虚构
-3. 不过度文学化，保持自然
-4. 不加入诊断
-5. 不加入用户没有表达的结论
+1. 使用第一人称，保持用户自己的语气和口吻
+2. **严格忠于用户原意，不虚构任何事件、人物、时间、原因**
+3. **只写入用户明确表达的内容，不添加推断或猜测**
+4. 将用户的多句话语整理成连贯的叙述，而非简单对话拼接
+5. 保持自然和真实感，不加入用户没有表达的结论或评判
+6. 可以适当加入过渡语句使内容流畅，但不能添加新的信息
 
 日记应包含以下结构：
 - 开头：日期或时间背景（如"今天"、"这一天"）
-- 中间：主要事件描述 + 用户明确表达的感受
-- 结尾：对当天状态的简短总结 + 可选的一句温和自我回应
+- 中间：用户表达的**具体内容**（用户说了什么、经历了什么、感受如何）
+- 结尾：用户表达的**期望或想法**（如果用户有表达，否则写一句温和的自我回应）
 
 示例格式：
 ```
 x月x日
 
-今天我[做了什么/遇到了什么]。[描述具体事件]。
+示例格式：
+```
+x月x日
 
-当时的感受是[用户明确表达的情绪]。[补充用户在意的细节]。
+今天[用户表达的日期背景]。[用户说的具体事件和想法，用自己的话整理]。
 
-回想起来，[对今天状态的总结]。希望明天也能[温和的自我期待]。
+[用户表达的感受和在意的地方]。
+
+[用户表达的期待或想法，如果没有，写：希望明天也能继续向前。]
 ```
 
-如果信息不足，diary_content 返回空字符串 ""。
+重要提醒：
+- 不要编造用户没有说的事件或感受
+- 不要加入诊断或评判性结论
+- 如果用户只表达了感受，就只写感受，不要添加事件
+- 如果信息不足，diary_content 返回空字符串 ""
 
 # 注意事项
 
@@ -131,6 +153,9 @@ def analyze_text_with_llm(
     Returns:
         与 analyze_text() 相同格式的 dict
     """
+    # 提取纯用户内容（排除 AI 回复），用于 fallback
+    user_only_content = _extract_user_content_from_conversation(conversation_messages, raw_content)
+
     try:
         from .ai_provider import get_provider
         from ..config import settings
@@ -205,13 +230,14 @@ def analyze_text_with_llm(
             if "title" not in result:
                 result["title"] = _generate_title_from_emotion(result["primary_emotion"])
 
-            # 生成 diary_content（如果 LLM 没有提供）
-            if "diary_content" not in result:
-                result["diary_content"] = f"今天我记录下了这段感受：{raw_content}"
+            # 生成 diary_content（如果 LLM 没有提供或为空）
+            if "diary_content" not in result or not result.get("diary_content", "").strip():
+                # 使用纯用户内容作为 fallback，不包含 AI 回复
+                result["diary_content"] = f"今天我记录下了这段感受：{user_only_content}"
 
         except (json.JSONDecodeError, ValueError) as e:
             # JSON 解析失败，回退到规则分析
-            return analyze_text(raw_content)
+            return analyze_text(user_only_content)
 
         # 添加 raw_response_json
         result["raw_response_json"] = json.dumps(result, ensure_ascii=False)
@@ -220,7 +246,7 @@ def analyze_text_with_llm(
 
     except Exception as e:
         # LLM 调用失败，回退到规则分析
-        return analyze_text(raw_content)
+        return analyze_text(user_only_content)
 
 
 def _get_default_value(field: str) -> any:
@@ -243,12 +269,37 @@ def _get_default_value(field: str) -> any:
 
 
 def _generate_title_from_emotion(emotion: str) -> str:
-    """根据情绪生成标题。"""
+    """根据情绪生成文艺风格的标题。"""
     titles = {
-        "joy": "开心的时刻",
-        "sadness": "低落的时刻",
-        "anxiety": "焦虑的时刻",
-        "calm": "平静的时刻",
-        "neutral": "今天的记录",
+        "joy": "微光点亮的日子",
+        "sadness": "雨后才有彩虹",
+        "anxiety": "翻涌过后是平静",
+        "calm": "内心的宁静港湾",
+        "neutral": "平凡中的诗意",
     }
-    return titles.get(emotion, "今天的心情记录")
+    return titles.get(emotion, "亦言亦思皆为序章")
+
+
+def _extract_user_content_from_conversation(conversation_messages: list[dict] | None, raw_content: str) -> str:
+    """从对话消息中提取用户内容，用于 fallback。
+
+    优先使用 conversation_messages 中的用户消息（排除 AI 回复）。
+    如果没有 conversation_messages 或提取失败，回退到 raw_content。
+
+    Args:
+        conversation_messages: 对话消息列表 [{role, content}, ...]
+        raw_content: 原始内容（作为最后的 fallback）
+
+    Returns:
+        纯用户对话内容，用换行符连接
+    """
+    if conversation_messages and len(conversation_messages) > 0:
+        # 提取用户消息（排除 AI 回复）
+        user_messages = [
+            msg.get("content", "") for msg in conversation_messages if msg.get("role") == "user"
+        ]
+        user_content = "\n".join(filter(bool, user_messages))
+        if user_content.strip():
+            return user_content
+    # 回退到 raw_content
+    return raw_content

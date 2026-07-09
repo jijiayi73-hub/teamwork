@@ -64,14 +64,16 @@ export default function ParticleWaveHero({
     }
 
     function animate() {
-      if (isDisposed || !particles || !backgroundPlane || !particleMaterial) return;
+      if (isDisposed || !particles || !particleMaterial) return;
 
       const elapsedTime = clock.getElapsedTime();
       particleMaterial.uniforms.uTime.value = elapsedTime;
       particles.rotation.x = keyboardRotation.x + pointer.y * 0.08;
       particles.rotation.y = keyboardRotation.y + pointer.x * 0.12 + Math.sin(elapsedTime * 0.2) * 0.08;
       particles.rotation.z = keyboardRotation.z;
-      backgroundPlane.rotation.copy(particles.rotation);
+      if (backgroundPlane) {
+        backgroundPlane.rotation.copy(particles.rotation);
+      }
 
       controls.update();
       renderer.render(scene, camera);
@@ -120,79 +122,19 @@ export default function ParticleWaveHero({
     container.addEventListener('pointermove', handlePointerMove);
     window.addEventListener('keydown', handleKeyDown);
 
-    loadImage(imageUrl)
-      .catch(() => loadImage(DEFAULT_IMAGE_URL))
-      .then((image) => {
-        if (isDisposed) return;
-
-        const sourceUrl = image.currentSrc || image.src;
-        const imageRatio = image.width / image.height;
-        const { width: planeWidth, height: planeHeight } = getPlaneSize(imageRatio, camera, fit);
-
-        const texture = textureLoader.load(sourceUrl);
-        const backgroundGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
-        const backgroundMaterial = new THREE.MeshBasicMaterial({
-          map: texture,
-          transparent: true,
-          opacity: backgroundOpacity,
-          depthWrite: false,
-        });
-
-        backgroundPlane = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
-        backgroundPlane.position.z = -0.25;
-        scene.add(backgroundPlane);
-
-        const sampleWidth = 300;
-        const sampleHeight = Math.round(sampleWidth / imageRatio);
-        const canvas = document.createElement('canvas');
-        canvas.width = sampleWidth;
-        canvas.height = sampleHeight;
-
-        const context = canvas.getContext('2d');
-        if (!context) return;
-
-        context.drawImage(image, 0, 0, sampleWidth, sampleHeight);
-        const imageData = context.getImageData(0, 0, sampleWidth, sampleHeight);
-        const data = imageData.data;
-        const positions = [];
-        const colors = [];
-        const randoms = [];
-        const step = 2;
-
-        for (let y = 0; y < sampleHeight; y += step) {
-          for (let x = 0; x < sampleWidth; x += step) {
-            const index = (y * sampleWidth + x) * 4;
-            const red = data[index] / 255;
-            const green = data[index + 1] / 255;
-            const blue = data[index + 2] / 255;
-            const brightness = red * 0.299 + green * 0.587 + blue * 0.114;
-
-            if (brightness < 0.03) continue;
-
-            positions.push((x / sampleWidth - 0.5) * planeWidth);
-            positions.push(-(y / sampleHeight - 0.5) * planeHeight);
-            positions.push((Math.random() - 0.5) * 0.25);
-            colors.push(Math.min(red * 1.18, 1), Math.min(green * 1.14, 1), Math.min(blue * 1.12, 1));
-            randoms.push(Math.random());
-          }
-        }
-
-        const geometry = new THREE.BufferGeometry();
-        geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
-        geometry.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3));
-        geometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(randoms, 1));
-
-        particleMaterial = new THREE.ShaderMaterial({
-          transparent: true,
-          depthWrite: false,
-          blending: THREE.AdditiveBlending,
-          uniforms: {
-            uTime: { value: 0 },
-            uSize: { value: particleSize },
-            uWaveStrength: { value: waveStrength },
-            uWaveSpeed: { value: waveSpeed },
-          },
-          vertexShader: `
+    // Helper function to create shader material
+    function createParticleMaterial() {
+      return new THREE.ShaderMaterial({
+        transparent: true,
+        depthWrite: false,
+        blending: THREE.AdditiveBlending,
+        uniforms: {
+          uTime: { value: 0 },
+          uSize: { value: particleSize },
+          uWaveStrength: { value: waveStrength },
+          uWaveSpeed: { value: waveSpeed },
+        },
+        vertexShader: `
           uniform float uTime;
           uniform float uSize;
           uniform float uWaveStrength;
@@ -226,7 +168,7 @@ export default function ParticleWaveHero({
             vAlpha = 0.25 + brightness * 0.75 + glow * 0.35;
           }
         `,
-          fragmentShader: `
+        fragmentShader: `
           varying vec3 vColor;
           varying float vAlpha;
 
@@ -246,11 +188,137 @@ export default function ParticleWaveHero({
             gl_FragColor = vec4(finalColor, strength * vAlpha);
           }
         `,
+      });
+    }
+
+    // Helper function to create fallback particles
+    function createFallbackParticles() {
+      console.warn('[ParticleWaveHero] Creating fallback particles without image');
+      const positions = [];
+      const colors = [];
+      const randoms = [];
+      const particleCount = 1500;
+      const radius = 3;
+
+      for (let i = 0; i < particleCount; i++) {
+        const angle = (i / particleCount) * Math.PI * 2;
+        const r = radius * Math.sqrt(i / particleCount);
+        const x = Math.cos(angle) * r;
+        const y = Math.sin(angle) * r;
+
+        positions.push(x, y, (Math.random() - 0.5) * 0.5);
+        colors.push(0.5 + Math.random() * 0.3, 0.7 + Math.random() * 0.2, 1.0);
+        randoms.push(Math.random());
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(randoms, 1));
+
+      particleMaterial = createParticleMaterial();
+      particles = new THREE.Points(geometry, particleMaterial);
+      particles.renderOrder = 1; // 渲染顺序：粒子后渲染，覆盖背景
+      scene.add(particles);
+      animate();
+    }
+
+    // Helper function to create particles from image data
+    function createParticlesFromImage(imageData, planeWidth, planeHeight) {
+      const data = imageData.data;
+      const positions = [];
+      const colors = [];
+      const randoms = [];
+      const step = 2;
+      const sampleWidth = imageData.width;
+      const sampleHeight = imageData.height;
+
+      for (let y = 0; y < sampleHeight; y += step) {
+        for (let x = 0; x < sampleWidth; x += step) {
+          const index = (y * sampleWidth + x) * 4;
+          const red = data[index] / 255;
+          const green = data[index + 1] / 255;
+          const blue = data[index + 2] / 255;
+          const brightness = red * 0.299 + green * 0.587 + blue * 0.114;
+
+          if (brightness < 0.03) continue;
+
+          positions.push((x / sampleWidth - 0.5) * planeWidth);
+          positions.push(-(y / sampleHeight - 0.5) * planeHeight);
+          positions.push((Math.random() - 0.5) * 0.25);
+          colors.push(Math.min(red * 1.18, 1), Math.min(green * 1.14, 1), Math.min(blue * 1.12, 1));
+          randoms.push(Math.random());
+        }
+      }
+
+      const geometry = new THREE.BufferGeometry();
+      geometry.setAttribute('position', new THREE.Float32BufferAttribute(positions, 3));
+      geometry.setAttribute('aColor', new THREE.Float32BufferAttribute(colors, 3));
+      geometry.setAttribute('aRandom', new THREE.Float32BufferAttribute(randoms, 1));
+
+      particleMaterial = createParticleMaterial();
+      particles = new THREE.Points(geometry, particleMaterial);
+      particles.renderOrder = 1; // 渲染顺序：粒子后渲染，覆盖背景
+      scene.add(particles);
+      animate();
+    }
+
+    loadImage(imageUrl)
+      .catch((error) => {
+        console.warn('[ParticleWaveHero] Failed to load image, trying default:', imageUrl, error);
+        return loadImage(DEFAULT_IMAGE_URL);
+      })
+      .catch((error) => {
+        console.error('[ParticleWaveHero] Failed to load default image, using fallback particles:', error);
+        return null;
+      })
+      .then((image) => {
+        if (isDisposed) return;
+
+        if (!image) {
+          createFallbackParticles();
+          return;
+        }
+
+        const sourceUrl = image.currentSrc || image.src;
+        const imageRatio = image.width / image.height;
+        const { width: planeWidth, height: planeHeight } = getPlaneSize(imageRatio, camera, fit);
+
+        const texture = textureLoader.load(sourceUrl);
+        const backgroundGeometry = new THREE.PlaneGeometry(planeWidth, planeHeight);
+        const backgroundMaterial = new THREE.MeshBasicMaterial({
+          map: texture,
+          transparent: true,
+          opacity: backgroundOpacity,
+          depthWrite: false,
         });
 
-        particles = new THREE.Points(geometry, particleMaterial);
-        scene.add(particles);
-        animate();
+        backgroundPlane = new THREE.Mesh(backgroundGeometry, backgroundMaterial);
+        backgroundPlane.position.z = -0.25;
+        backgroundPlane.renderOrder = 0; // 渲染顺序：背景先渲染
+        scene.add(backgroundPlane);
+
+        const sampleWidth = 300;
+        const sampleHeight = Math.round(sampleWidth / imageRatio);
+        const canvas = document.createElement('canvas');
+        canvas.width = sampleWidth;
+        canvas.height = sampleHeight;
+
+        const context = canvas.getContext('2d');
+        if (!context) {
+          console.warn('[ParticleWaveHero] Failed to get canvas context, using fallback');
+          createFallbackParticles();
+          return;
+        }
+
+        try {
+          context.drawImage(image, 0, 0, sampleWidth, sampleHeight);
+          const imageData = context.getImageData(0, 0, sampleWidth, sampleHeight);
+          createParticlesFromImage(imageData, planeWidth, planeHeight);
+        } catch (error) {
+          console.warn('[ParticleWaveHero] Failed to process image data, using fallback:', error);
+          createFallbackParticles();
+        }
       });
 
     return () => {

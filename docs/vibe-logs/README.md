@@ -44,6 +44,7 @@ py -m pytest tests/test_chat_api.py tests/test_chat_service.py tests/test_retrie
 | [Log 13](./log-13-migration-hardening.md) | 迁移加固与数据库约束 | 2026-07-08 | ✓ |
 | [Log 14](./log-14-chat-api-implementation-verification.md) | Chat API 实现验证 | 2026-07-08 | ✓ |
 | [Log 15](./log-15-deepseek-provider-verification.md) | DeepSeek Provider 验证 | 2026-07-08 | ✓ |
+| [Log 34](./log-34-vps-deployment-fix.md) | VPS 部署修复与验证 | 2026-07-09 | ✓ |
 
 ## 最新日志说明
 

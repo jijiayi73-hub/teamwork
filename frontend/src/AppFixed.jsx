@@ -1,4 +1,4 @@
-import React, { Suspense, lazy, useEffect, useMemo, useRef, useState } from 'react';
+import React, { Suspense, lazy, useEffect, useMemo, useRef, useState, useCallback } from 'react';
 import {
   clearLogs,
   createDiary,
@@ -151,7 +151,7 @@ function HomePage() {
         </div>
       </div>
       <p className="absolute bottom-6 left-1/2 w-full max-w-4xl -translate-x-1/2 px-5 text-center text-xs leading-6 text-white/50 sm:text-sm">
-        产品边界：Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。
+        Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。
       </p>
     </section>
   );
@@ -169,6 +169,15 @@ function ChatPage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const messagesEndRef = useRef(null);
+
+  // TTS state
+  const [ttsWs, setTtsWs] = useState(null);
+  const [ttsPlayingIndex, setTtsPlayingIndex] = useState(null);
+  const [audioContext, setAudioContext] = useState(null);
+  const [ttsSessionActive, setTtsSessionActive] = useState(false);
+  const ttsQueueRef = useRef([]);
+  const isPlayingRef = useRef(false);
 
   async function handleSend() {
     const rawContent = text.trim();
@@ -232,14 +241,133 @@ function ChatPage() {
     recognition.start();
   }
 
+  // TTS functions
+  const initTTSConnection = useCallback(() => {
+    if (ttsWs) return;
+
+    const protocol = window.location.protocol === 'https:' ? 'wss:' : 'ws:';
+    const host = window.location.host;
+    const wsUrl = `${protocol}//${host}/api/v1/tts/stream`;
+
+    const ws = new WebSocket(wsUrl);
+
+    ws.onopen = () => {
+      console.log('TTS WebSocket connected');
+      // Start session automatically
+      ws.send(JSON.stringify({ type: 'start', speaker: 'zh_female_qingxin', format: 'pcm', sample_rate: 24000 }));
+    };
+
+    ws.onmessage = async (event) => {
+      if (typeof event.data === 'string') {
+        const message = JSON.parse(event.data);
+        console.log('TTS message:', message);
+
+        if (message.type === 'session_started') {
+          setTtsSessionActive(true);
+        } else if (message.type === 'error') {
+          console.error('TTS error:', message.message);
+          setNote(`语音错误: ${message.message}`);
+          setTtsPlayingIndex(null);
+          setTtsSessionActive(false);
+        } else if (message.type === 'finished' || message.type === 'canceled') {
+          setTtsSessionActive(false);
+          setTtsPlayingIndex(null);
+        }
+      } else if (event.data instanceof ArrayBuffer || event.data instanceof Blob) {
+        // Binary audio data
+        const arrayBuffer = event.data instanceof Blob ? await event.data.arrayBuffer() : event.data;
+
+        // Create AudioContext if needed
+        if (!audioContext) {
+          const ctx = new (window.AudioContext || window.webkitAudioContext)({ sampleRate: 24000 });
+          setAudioContext(ctx);
+        }
+
+        // Decode and play audio
+        try {
+          const audioBuffer = await audioContext.decodeAudioData(arrayBuffer);
+          const source = audioContext.createBufferSource();
+          source.buffer = audioBuffer;
+          source.connect(audioContext.destination);
+          source.start();
+        } catch (e) {
+          console.error('Audio playback error:', e);
+        }
+      }
+    };
+
+    ws.onerror = (error) => {
+      console.error('TTS WebSocket error:', error);
+      setNote('语音连接错误');
+    };
+
+    ws.onclose = () => {
+      console.log('TTS WebSocket closed');
+      setTtsSessionActive(false);
+      setTtsWs(null);
+    };
+
+    setTtsWs(ws);
+  }, [ttsWs, audioContext]);
+
+  const handleTTSPlay = useCallback((index) => {
+    const message = messages[index];
+    if (!message || message.role !== 'assistant') return;
+
+    // Toggle off if clicking the same playing message
+    if (ttsPlayingIndex === index) {
+      setTtsPlayingIndex(null);
+      if (ttsWs && ttsSessionActive) {
+        ttsWs.send(JSON.stringify({ type: 'finish' }));
+      }
+      return;
+    }
+
+    // Initialize connection if needed
+    if (!ttsWs) {
+      initTTSConnection();
+    }
+
+    // Set playing index
+    setTtsPlayingIndex(index);
+    setNote('正在朗读...');
+
+    // Send text for TTS
+    if (ttsWs && ttsSessionActive) {
+      ttsWs.send(JSON.stringify({ type: 'text', text: message.content }));
+    } else {
+      // Queue the text if session not ready
+      ttsQueueRef.current = [message.content];
+    }
+  }, [messages, ttsPlayingIndex, ttsWs, ttsSessionActive, initTTSConnection]);
+
+  // Clean up TTS connection on unmount
+  useEffect(() => {
+    return () => {
+      if (ttsWs) {
+        ttsWs.close();
+      }
+      if (audioContext) {
+        audioContext.close();
+      }
+    };
+  }, [ttsWs, audioContext]);
+
+  // 自动滚动到底部：当 messages 更新或 AI 正在输入时
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isAiTyping]);
+
   async function handleImageUpload(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setNote('请选择图片文件');
       return;
     }
-    if (file.size > 4 * 1024 * 1024) {
-      setNote('图片大小不能超过 4MB');
+    if (file.size > 12 * 1024 * 1024) {
+      setNote('图片大小不能超过 12MB');
       return;
     }
     setIsUploading(true);
@@ -266,6 +394,7 @@ function ChatPage() {
 
   async function handleGenerateDiary() {
     const transcript = transcriptFromMessages(messages);
+    const userTranscript = transcriptFromUserMessages(messages);
     if (!transcript.trim()) {
       setNote('先写下一点点，或继续回答一个问题。');
       return;
@@ -274,16 +403,18 @@ function ChatPage() {
     try {
       const response = await createEntry(transcript, conversationId);
       const entry = response.data;
+      // 当 AI 生成的日记内容为空或太短时，使用纯用户对话内容（不包含 AI 回复）
+      const fallbackContent = userTranscript.trim() || transcript;
       const draft = {
         entry_id: entry.id,
         conversation_id: conversationId,
         title: entry.draft_title || '今天的温柔记录',
-        content: entry.draft_content || transcript,
+        content: entry.draft_content || fallbackContent,
         raw_content: transcript,
         conversation_messages: messages,
         cover_prompt: buildWatercolorPrompt({
           title: entry.draft_title || '今天的记忆',
-          content: entry.draft_content || transcript,
+          content: entry.draft_content || fallbackContent,
           raw_content: transcript,
           conversation_messages: messages,
           analysis: entry.analysis,
@@ -302,24 +433,18 @@ function ChatPage() {
 
   return (
     <section className="relative z-10 flex min-h-[calc(100vh-96px)] items-center justify-center px-5 pb-12 pt-4 lg:px-14">
-      {uploadedImage ? (
-        <div
-          className="absolute inset-0 bg-cover bg-center"
-          style={{ backgroundImage: `url(${uploadedImage})` }}
+      <Suspense fallback={null}>
+        <ParticleWaveHero
+          backgroundOpacity={uploadedImage ? 0.85 : 0.62}
+          className="chat-particle-wave"
+          fit="cover"
+          imageUrl={uploadedImage || undefined}
+          interactive
+          particleSize={14}
+          waveSpeed={1.35}
+          waveStrength={0.28}
         />
-      ) : (
-        <Suspense fallback={null}>
-          <ParticleWaveHero
-            backgroundOpacity={0.62}
-            className="chat-particle-wave"
-            fit="cover"
-            interactive
-            particleSize={14}
-            waveSpeed={1.35}
-            waveStrength={0.28}
-          />
-        </Suspense>
-      )}
+      </Suspense>
       <div className="chat-stage">
         <div className="text-center">
           <p className="text-xs uppercase tracking-[0.34em] text-[#c8e0ff]/70">AI Companion Chat</p>
@@ -331,8 +456,20 @@ function ChatPage() {
             {messages.map((message, index) => (
               <div className={`ai-notification ${message.role === 'user' ? 'ai-notification-user' : ''}`} key={`${message.role}-${index}-${message.content}`}>
                 {message.role !== 'user' && <span className="ai-notification-dot" />}
-                <div>
+                <div className="ai-notification-content">
                   <p>{message.content}</p>
+                  {message.role === 'assistant' && (
+                    <button
+                      className={`tts-play-button ${ttsPlayingIndex === index ? 'is-playing' : ''}`}
+                      onClick={() => handleTTSPlay(index)}
+                      type="button"
+                      aria-label="朗读"
+                      title="点击朗读"
+                    >
+                      <span className="tts-icon">♪</span>
+                      <span className="tts-text">{ttsPlayingIndex === index ? '停止' : '朗读'}</span>
+                    </button>
+                  )}
                 </div>
               </div>
             ))}
@@ -343,6 +480,8 @@ function ChatPage() {
                 <div className="ai-thinking-dot" />
               </div>
             )}
+            {/* 滚动锚点：用于自动滚动到底部 */}
+            <div ref={messagesEndRef} />
           </div>
           {note && <p className="chat-note">{note}</p>}
           <input
@@ -400,6 +539,9 @@ function ChatPage() {
           </div>
         </section>
       </div>
+      <p className="absolute bottom-6 left-1/2 w-full max-w-4xl -translate-x-1/2 px-5 text-center text-xs leading-6 text-white/50 sm:text-sm">
+        Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。
+      </p>
     </section>
   );
 }
@@ -623,6 +765,7 @@ function DiaryResultPage() {
           {status && <StatusText>{status}</StatusText>}
         </aside>
       </div>
+      <p className="mt-8 text-center text-xs leading-6 text-white/50">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
     </PageShell>
   );
 }
@@ -698,6 +841,7 @@ function MemoryGardenPage() {
           )}
         </section>
         {status && <p className="memory-garden-status">{status}</p>}
+        <p className="mt-6 text-center text-xs leading-6 text-white/50">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
       </div>
     </section>
   );
@@ -765,6 +909,7 @@ function MemoryDetailPage({ memoryId }) {
         </div>
       )}
       {status && <StatusText>{status}</StatusText>}
+      <p className="mt-8 text-center text-xs leading-6 text-white/50">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
     </PageShell>
   );
 }
@@ -1467,7 +1612,7 @@ function AboutPage() {
 
           {/* Footer */}
           <div className="about-footer">
-            <p>产品边界：Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
+            <p>Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
           </div>
         </div>
       </div>
@@ -1541,6 +1686,28 @@ function MonthlyReport() {
     return memory.cover_image_url || memory.diary?.cover_image_url || '';
   }
 
+  function getMonthlyEmotionKey(memory) {
+    const emotion = String(getDiaryEmotion(memory)).trim().toLowerCase();
+    if (['joy', 'happy', 'happiness', '开心', '快乐'].includes(emotion)) return 'joy';
+    if (['calm', 'peaceful', 'peace', '平静', '安定'].includes(emotion)) return 'calm';
+    if (['sad', 'sadness', '难过', '伤心', '低落'].includes(emotion)) return 'sadness';
+    if (['anxiety', 'anxious', 'fear', '焦虑', '紧张'].includes(emotion)) return 'anxiety';
+    if (['tired', 'fatigue', 'exhausted', '疲惫', '疲劳'].includes(emotion)) return 'tired';
+    return EMOTION_COLOR_MAP[emotion] ? emotion : 'neutral';
+  }
+
+  function getMonthlyEmotionLabel(emotionKey) {
+    const labels = {
+      anxiety: '焦虑',
+      calm: '平静',
+      joy: '开心',
+      neutral: '中性',
+      sadness: '难过',
+      tired: '疲惫',
+    };
+    return labels[emotionKey] || '未知';
+  }
+
   function getDiarySummary(memory) {
     return memory.excerpt || memory.conversation_summary || memory.diary?.content || '这一天被温柔地保存下来。';
   }
@@ -1548,11 +1715,14 @@ function MonthlyReport() {
   function normalizeMemory(memory) {
     const dateKey = getDiaryDateKey(memory);
     if (!dateKey) return null;
+    const emotionKey = getMonthlyEmotionKey(memory);
     return {
       ...memory,
       dateKey,
       displayDate: memory.diary_date || dateKey,
-      displayEmotion: getDiaryEmotion(memory),
+      displayEmotion: getMonthlyEmotionLabel(emotionKey),
+      emotionColor: getEmotionColor(emotionKey),
+      emotionKey,
       displayImage: getDiaryImage(memory),
       displaySummary: getDiarySummary(memory),
       emoji: getMoodEmoji(memory),
@@ -1604,6 +1774,23 @@ function MonthlyReport() {
   }, [visibleMonth, diaryIndex]);
 
   const monthTitle = `${MONTH_NAMES[visibleMonth.month]} ${visibleMonth.year}`;
+  const monthlyEntries = useMemo(() => Object.values(diaryIndex), [diaryIndex]);
+  const monthlyStats = useMemo(() => {
+    const counts = monthlyEntries.reduce((result, entry) => {
+      const emotionKey = entry.emotionKey || 'neutral';
+      result[emotionKey] = (result[emotionKey] || 0) + 1;
+      return result;
+    }, {});
+    return Object.entries(counts)
+      .sort((left, right) => right[1] - left[1])
+      .map(([emotionKey, count]) => ({
+        color: getEmotionColor(emotionKey),
+        count,
+        emotionKey,
+        label: getMonthlyEmotionLabel(emotionKey),
+      }));
+  }, [monthlyEntries]);
+  const hasMonthlyEntries = monthlyEntries.length > 0;
 
   function showEmptyToast() {
     setToastVisible(true);
@@ -1630,6 +1817,25 @@ function MonthlyReport() {
 
   return (
     <section className="monthly-report-page" aria-label="Monthly mood report">
+      <section className="monthly-report-summary" aria-label="Monthly emotion summary">
+        <p className="monthly-report-summary-label">本月统计</p>
+        {hasMonthlyEntries ? (
+          <>
+            <strong>{monthlyEntries.length} 篇日记</strong>
+            <div className="monthly-report-summary-list">
+              {monthlyStats.map((item) => (
+                <span className="monthly-report-summary-item" key={item.emotionKey}>
+                  <i style={{ backgroundColor: item.color }} />
+                  {item.label} {item.count}
+                </span>
+              ))}
+            </div>
+          </>
+        ) : (
+          <strong>你还没有开始记录呢</strong>
+        )}
+      </section>
+
       <div className="monthly-report-shell">
         <header className="monthly-report-header">
           <p className="monthly-report-eyebrow">Inner Garden</p>
@@ -1649,7 +1855,12 @@ function MonthlyReport() {
           {WEEKDAYS.map((weekday) => <span key={weekday}>{weekday}</span>)}
         </div>
 
-        <div className="monthly-report-calendar">
+        <div className={`monthly-report-calendar ${hasMonthlyEntries ? '' : 'is-empty'}`}>
+          {!hasMonthlyEntries && (
+            <div className="monthly-report-empty-state" role="status">
+              <p>你还没有开始记录呢</p>
+            </div>
+          )}
           {calendarDays.map((day) => {
             const dayClassName = [
               'monthly-report-day',
@@ -1667,14 +1878,20 @@ function MonthlyReport() {
                 type="button"
               >
                 <span className="monthly-report-day-number">{day.day}</span>
-                {day.entry && <span className="monthly-report-emoji">{day.entry.emoji}</span>}
+                {day.entry && (
+                  <span
+                    aria-label={day.entry.displayEmotion}
+                    className="monthly-report-emotion-dot"
+                    style={{ backgroundColor: day.entry.emotionColor }}
+                  />
+                )}
               </button>
             );
           })}
         </div>
 
         <footer className="monthly-report-footer">
-          <p className="monthly-report-note">产品边界：Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
+          <p className="monthly-report-note">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
           {status && <p className="monthly-report-status">{status}</p>}
         </footer>
       </div>
@@ -1702,7 +1919,11 @@ function MonthlyReport() {
               <span>{selectedEntry.displayDate}</span>
               <h3>{selectedEntry.title || 'Untitled Memory'}</h3>
               <p className="monthly-report-modal-emotion">
-                {selectedEntry.emoji} {selectedEntry.displayEmotion}
+                <span
+                  className="monthly-report-inline-dot"
+                  style={{ backgroundColor: selectedEntry.emotionColor }}
+                />
+                {selectedEntry.displayEmotion}
               </p>
               <p>{selectedEntry.displaySummary || '这一天已经被温柔地保存下来。'}</p>
             </div>
@@ -1779,6 +2000,15 @@ function writeDraftFromMessages(messages, conversationId) {
 
 function transcriptFromMessages(messages) {
   return (messages || []).map((message) => `${message.role === 'user' ? '我' : 'AI'}：${message.content}`).join('\n');
+}
+
+function transcriptFromUserMessages(messages) {
+  // 只提取用户消息，不包含 AI 回复
+  return (messages || [])
+    .filter((message) => message.role === 'user')
+    .map((message) => message.content)
+    .filter(Boolean)
+    .join('\n');
 }
 
 function buildCoverPrompt(draft, emotion) {
@@ -2144,6 +2374,7 @@ function PasswordResetPage({ token }) {
               返回登录
             </a>
           </div>
+          <p className="mt-6 text-center text-xs leading-6 text-white/40">Inner Garden 不是心理诊断工具，也不提供治疗、用药或医疗建议；它只做记录、陪伴和回忆整理。</p>
         </div>
       </div>
     </main>

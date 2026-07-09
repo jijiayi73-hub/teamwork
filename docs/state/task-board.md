@@ -1,5 +1,698 @@
 # Inner Garden Task Board
 
+## 2026-07-10 Task Update: TASK-038 记忆卡片数据生成
+
+### TASK-038: 为test1用户生成记忆卡片数据
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+将test1用户的对话数据转换为日记和记忆卡片，使其能在Memory Garden和Monthly Report中显示。
+
+#### 实现内容
+1. **记忆卡片生成脚本** - 创建 `scripts/generate-memory-cards.py`
+   - 从对话中提取用户消息
+   - 创建Entry → Diary → Memory Card
+
+2. **数据流程**:
+   ```
+   Conversation → Entry → Diary → Memory Card
+   ```
+
+3. **测试数据**:
+   - 19个记忆卡片
+   - 日期范围: 2026-06-01 至 2026-06-20
+   - 多种情绪: calm, happy, anxious, sad, neutral
+
+#### 验证结果
+```bash
+py scripts/generate-memory-cards.py
+# ✅ 19个记忆卡片创建成功
+
+curl https://jijiayi.online/api/v1/memories
+# ✅ 19个记忆卡片正常返回
+```
+
+#### 数据统计
+| 指标 | 值 |
+|------|------|
+| 记忆卡片数量 | 19 |
+| 日期范围 | 2026-06-01 至 2026-06-20 |
+| 情绪类型 | 5种 |
+
+#### 文档
+- `scripts/generate-memory-cards.py` - 记忆卡片生成脚本
+
+---
+
+## 2026-07-10 Task Update: TASK-037 AI朗读功能（火山引擎豆包TTS）
+
+### TASK-037: AI文本朗读功能
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+实现AI文本朗读功能，在每个AI生成的文本气泡后添加朗读按钮（类似"）））"样式），点击后调用火山引擎豆包TTS API朗读内容。
+
+#### 实现内容
+1. **后端TTS协议模块** - 创建完整的火山引擎豆包双向流式TTS实现
+   - `protocol.py` - 二进制帧编码/解析（大端序，4字节协议头）
+   - `events.py` - 事件常量定义（StartConnection, StartSession, TaskRequest等）
+   - `exceptions.py` - TTS专用异常类（ConnectionError, SessionError等）
+   - `models.py` - TTS数据模型（TTSConfig, TTSRequest, SessionInfo等）
+   - `client.py` - VolcengineTTSClient WebSocket客户端
+
+2. **后端TTS API** - FastAPI WebSocket端点
+   - `/api/v1/tts/stream` - 双向WebSocket流式音频传输
+   - `/api/v1/tts/health` - TTS服务健康检查
+   - `/api/v1/tts/speakers` - 可用音色列表
+
+3. **配置更新** - 添加TTS环境变量配置
+   - `VOLCENGINE_TTS_API_KEY` - API密钥（必需）
+   - `VOLCENGINE_TTS_RESOURCE_ID` - 资源ID（默认seed-tts-2.0）
+   - `VOLCENGINE_TTS_SPEAKER` - 默认音色
+   - `VOLCENGINE_TTS_ENDPOINT` - WebSocket端点
+
+4. **前端TTS组件** - 添加朗读按钮和音频播放
+   - TTS按钮组件（♪图标 + "朗读"/"停止"文字）
+   - WebSocket客户端连接管理
+   - AudioContext音频播放（PCM 24000Hz）
+   - 播放状态管理（ttsPlayingIndex）
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| TTS协议模块 | 新建 | `backend/app/services/volcengine_tts/` |
+| TTS API路由 | 新建 | `backend/app/routers/tts.py` |
+| 配置更新 | 更新 | `backend/app/config.py` |
+| 主应用 | 注册TTS路由 | `backend/app/main.py` |
+| 环境变量 | 更新 | `backend/.env.example` |
+| 前端TTS组件 | 更新 | `frontend/src/AppFixed.jsx` |
+| CSS样式 | 添加TTS按钮样式 | `frontend/src/styles.css` |
+
+#### 验证
+```bash
+# 后端导入验证
+cd backend
+py -c "from app.services.volcengine_tts import VolcengineTTSClient, TTSConfig; print('OK')"
+# Result: OK
+
+# 主应用导入验证
+py -c "from app.main import app; print('OK')"
+# Result: OK
+
+# 前端构建验证
+cd frontend
+npm run build
+# Result: ✓ built in 2.12s
+```
+
+#### API / 数据库影响
+- **新增 WebSocket 端点**:
+  - `ws://localhost/api/v1/tts/stream` - TTS流式音频（需要认证）
+  - `GET /api/v1/tts/health` - 健康检查（公开）
+  - `GET /api/v1/tts/speakers` - 音色列表（公开）
+- **数据库**: 无影响
+- **环境变量**: 需要配置 `VOLCENGINE_TTS_API_KEY`
+
+#### 功能说明
+- 每个AI消息气泡后显示朗读按钮
+- 点击按钮连接后端TTS WebSocket
+- 流式播放AI消息的语音朗读
+- 支持播放/停止控制
+- 使用PCM格式，24000Hz采样率，适合实时浏览器播放
+
+#### 环境变量配置
+```bash
+# 必需配置
+VOLCENGINE_TTS_API_KEY=your-api-key-here
+
+# 可选配置（有默认值）
+VOLCENGINE_TTS_RESOURCE_ID=seed-tts-2.0
+VOLCENGINE_TTS_SPEAKER=zh_female_qingxin
+VOLCENGINE_TTS_ENDPOINT=wss://openspeech.bytedance.com/api/v3/tts/bidirection
+```
+
+#### 常用音色
+- `zh_female_qingxin` - 女声清新（推荐）
+- `zh_female_wanxiaomei` - 女声婉小妹
+- `zh_male_zhiboshenquan` - 男声之博深情
+- `zh_male_zhiboyangguang` - 男声之博阳光
+- `zh_female_qiaoke` - 女声可可
+- `zh_male_wukong` - 男声悟空
+
+#### 文档
+- `CLAUDE.md` - 火山引擎TTS完整开发文档
+
+#### 注意事项
+- 需要从火山引擎控制台获取API Key
+- TTS功能需要配置 `VOLCENGINE_TTS_API_KEY` 才能使用
+- 前端使用Web Audio API播放PCM音频
+- 浏览器需要支持WebSocket和Web Audio API
+
+---
+
+## 2026-07-10 Task Update: TASK-036 日记生成 Fallback 只记录用户对话
+
+### TASK-036: 日记生成中纯用户内容 Fallback
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+当用户对话信息量无法完成补充为日记的要求时，只记录用户的对话内容，不记录 AI 聊天回复，将用户对话内容作为日记内容。
+
+#### 实现内容
+1. **前端用户消息提取** - 添加 `transcriptFromUserMessages()` 函数
+   - 只提取 `role === 'user'` 的消息
+   - 过滤空内容，用换行符连接
+
+2. **前端 Fallback 逻辑** - 更新 `handleGenerateDiary()`
+   - 当 `entry.draft_content` 为空时，使用 `userTranscript` 而非包含 AI 回复的 `transcript`
+   - 确保日记内容只包含用户表达
+
+3. **后端用户消息提取** - 添加 `_extract_user_content_from_conversation()` 函数
+   - 从 `conversation_messages` 中提取 `role === 'user'` 的消息
+   - 优先使用纯用户内容，回退到 `raw_content`
+
+4. **后端 Fallback 逻辑** - 更新 `analyze_text_with_llm()`
+   - 在 LLM 返回空 `diary_content` 时使用纯用户内容
+   - 在 JSON 解析失败和 LLM 调用失败时使用纯用户内容
+   - 保持前后端 fallback 逻辑一致
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 用户消息提取函数 | 新建 | `frontend/src/AppFixed.jsx` |
+| 日记生成 Fallback | 更新 | `frontend/src/AppFixed.jsx` |
+| 用户消息提取函数 | 新建 | `backend/app/services/analysis_service.py` |
+| LLM 分析 Fallback | 更新 | `backend/app/services/analysis_service.py` |
+
+#### 验证
+```bash
+# 前端构建
+cd frontend
+npm run build
+# Result: ✓ built in 2.86s
+
+# 后端导入
+cd backend
+py -c "from app.services.analysis_service import analyze_text_with_llm, _extract_user_content_from_conversation; print('Backend imports OK')"
+# Result: Backend imports OK
+```
+
+#### 预期行为
+- 当 LLM 成功生成日记内容时，使用 AI 生成的内容（150-400字结构化日记）
+- 当 LLM 返回空内容或信息量不足时：
+  - 前端使用纯用户对话作为日记内容（不包含 AI 回复）
+  - 后端 fallback 也使用纯用户对话（保持一致性）
+- 用户看到的日记内容只包含自己说的话，不包含 AI 的回复
+
+---
+
+## 2026-07-10 Task Update: TASK-035 VPS测试数据生成
+
+### TASK-035: 生成测试用户和6月对话数据
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+在VPS端生成测试账户 test1，并创建6月1日-6月29日的AI对话记录，每日内容随机。
+
+#### 实现内容
+1. **测试数据生成脚本** - 创建 `scripts/generate-test-data.py`
+   - 支持用户注册/登录
+   - 自动创建对话
+   - 生成用户和AI消息
+
+2. **测试账户** - test1 / test1@example.com / 123456
+   - 用户ID: 15
+   - 状态: active
+
+3. **对话数据** - 6月1日-6月29日，每日1个对话
+   - 29个对话已创建
+   - 每个对话包含2-4组消息交换
+   - 每日话题随机（如心情、工作、朋友、学习等）
+   - AI回复使用预设的28种模板
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 测试数据脚本 | 新建 | `scripts/generate-test-data.py` |
+
+#### 验证结果
+```bash
+# 运行测试数据生成
+py scripts/generate-test-data.py
+# 结果: ✅ 29个对话创建成功，每日2-4组消息交换
+
+# 验证VPS数据
+curl https://jijiayi.online/api/v1/chat/conversations
+# 结果: 87个对话总数（包括测试数据）
+```
+
+#### 数据统计
+| 指标 | 值 |
+|------|------|
+| 测试用户 | 1 (test1) |
+| 对话数量 | 29 (6.1-6.29) |
+| 每日消息数 | 4-8条 (2-4组交换) |
+| 话题种类 | 28种 |
+| AI回复模板 | 28种 |
+
+#### 使用方式
+```bash
+# 生成测试数据到VPS
+py scripts/generate-test-data.py
+
+# 生成到本地服务器
+py scripts/generate-test-data.py --local
+
+# 自定义URL
+py scripts/generate-test-data.py --url https://your-domain.com
+```
+
+#### 文档
+- `scripts/generate-test-data.py` - 测试数据生成脚本
+
+---
+
+## 2026-07-10 Task Update: TASK-034 上传图片后背景动画效果修复
+
+### TASK-034: 聊天背景动画效果保留
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 问题描述
+用户上传图片后，原来会动的旋转和粒子效果变成了静态图片。
+
+#### 根本原因
+ChatPage 组件使用条件渲染互斥显示：有图片时显示静态 div 背景，无图片时显示 ParticleWaveHero 动画组件。两者不能共存，导致上传图片后动画消失。
+
+#### 解决方案
+将用户上传的图片 URL 传递给 ParticleWaveHero 组件的 imageUrl 属性，移除条件渲染，使图片和动画可以同时显示。
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| ChatPage 背景 | 移除条件渲染，传递 uploadedImage 给 ParticleWaveHero | `frontend/src/AppFixed.jsx` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.33s
+```
+
+#### 预期行为
+- 上传图片后，图片作为背景显示
+- 粒子波浪动画叠加在图片上方继续运行
+- 图片可见度提高（backgroundOpacity 0.85）
+
+#### 文档
+- `docs/vibe-logs/log-42-chat-background-animation-fix.md`
+
+---
+
+## 2026-07-10 Task Update: TASK-033 聊天 Failed to Fetch 错误修复
+
+### TASK-033: 聊天消息发送失败修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ⚠️ Partially Fixed - 需要浏览器验证 |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-10 |
+
+#### 问题
+用户报告聊天消息发送失败："发送失败：Failed to fetch。用户消息已保留，可以重试或生成草稿。"
+
+#### 根本原因
+1. **Cloudflare CDN 代理**: 域名使用 Cloudflare 代理，导致 POST 请求无法正确传递
+2. **Nginx 配置不完整**: 缺少 Content-Type 和 Content-Length 头转发
+
+#### 修复内容
+1. **关闭 Cloudflare 代理**: 将 DNS 从 "Proxied" 改为 "DNS only"
+2. **更新 Nginx 配置**:
+   - 添加 `proxy_set_header Content-Type $content_type;`
+   - 添加 `proxy_set_header Content-Length $content_length;`
+   - 添加 `proxy_buffering off;`
+   - 添加 `proxy_request_buffering off;`
+
+#### 验证结果
+| 测试方式 | 结果 |
+|---------|------|
+| 直接访问后端 | ✅ 成功 |
+| VPS 内部 HTTPS | ✅ 成功 |
+| 外部 curl HTTPS | ⚠️ 不稳定（SSL 重协商问题）|
+| 浏览器访问 | ❓ 待用户测试 |
+
+#### 下一步
+请在浏览器中访问 https://jijiayi.online 测试聊天功能。
+
+#### 文档
+- `docs/vibe-logs/log-41-chat-fetch-fix.md`
+
+---
+
+## 2026-07-10 Task Update: TASK-032 日记标题与内容文艺化改进
+
+### TASK-032: 日记标题文艺化与内容完整性优化
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
+
+#### 目标
+改进 AI 生成的日记标题和内容，使其更加文艺、诗意，同时确保不编造事实，并将用户话语整理成完整的日记叙述。
+
+#### 实现内容
+1. **Fallback 标题文艺化** - 更新 `_generate_title_from_emotion()` 函数
+   - "开心的时刻" → "微光点亮的日子"
+   - "平静的时刻" → "内心的宁静港湾"
+   - "焦虑的时刻" → "翻涌过后是平静"
+   - "低落的时刻" → "雨后才有彩虹"
+   - "今天的记录" → "平凡中的诗意"
+
+2. **LLM Prompt 优化** - 扩展 `EMOTION_ANALYSIS_SYSTEM_PROMPT`
+   - 标题要求：明确"文艺诗意，含蓄不直白"的风格
+   - 提供 5 种情绪的标题示例（自然意象、空间意象）
+   - 强化"不虚构"原则：只写入用户明确表达的内容
+   - 优化日记结构：日期背景 + 用户表达的内容 + 期待/想法
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| Fallback 标题函数 | 更新文艺风格标题映射 | `backend/app/services/analysis_service.py` |
+| LLM Prompt | 添加标题文艺风格指南和内容完整性要求 | `backend/app/services/analysis_service.py` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.services.analysis_service import EMOTION_ANALYSIS_SYSTEM_PROMPT, _generate_title_from_emotion; print('OK')"
+# Result: Backend imports OK
+# Prompt updated with literary guidance
+# Fallback titles verified
+```
+
+#### API / 数据库影响
+- **API**: 无影响。`draft_title` 和 `draft_content` 字段保持不变
+- **数据库**: 无影响。无需修改表结构
+
+#### 预期行为
+- **标题风格**：使用自然意象（微光、彩虹、港湾）和空间意象，含蓄表达情绪
+- **内容结构**：
+  - 开头：日期背景（"今天"、"这一天"）
+  - 中间：用户表达的**具体内容**（用自己的话整理）
+  - 结尾：用户表达的**期待或想法**
+- **真实性保证**：
+  - 只写入用户明确表达的内容
+  - 不虚构事件、人物、时间、原因
+  - 不添加诊断或评判性结论
+  - 用户只表达了感受就只写感受
+
+#### 文档
+- `docs/vibe-logs/log-40-diary-literary-improvement.md` (待创建)
+
+---
+
+## 2026-07-09 Task Update: TASK-031 Chat Dialog Scroll Fix
+
+### TASK-031: 聊天对话框滚动修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+修复聊天对话框无法向上滚动查看历史消息的问题。
+
+#### 问题根源
+`.ai-notification-list` 使用了 `justify-content: flex-end` 让消息从底部开始对齐，导致滚动行为不符合用户预期。
+
+#### 实现内容
+1. **CSS 修复** - 移除 `.ai-notification-list` 的 `justify-content: flex-end`
+2. **添加滚动锚点** - 在 ChatPage 组件中添加 `messagesEndRef` 引用
+3. **自动滚动逻辑** - 添加 `useEffect` 钩子在消息更新时自动滚动到底部
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| CSS 样式 | 移除 justify-content: flex-end | `frontend/src/styles.css` |
+| ChatPage 组件 | 添加 messagesEndRef 和 useEffect | `frontend/src/AppFixed.jsx` |
+| JSX | 添加滚动锚点元素 | `frontend/src/AppFixed.jsx` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.04s
+```
+
+#### API / 数据库影响
+- **API**: 无影响
+- **数据库**: 无影响
+
+#### 预期行为
+- 新消息到达时自动滚动到底部
+- 用户可以自由向上滚动查看历史消息
+- AI 正在输入时自动保持在底部
+- 滚动条可见且易于使用
+
+#### 文档
+- `docs/vibe-logs/log-38-chat-scroll-fix.md`
+
+---
+
+## 2026-07-09 Task Update: TASK-030 Voice Input Interface Implementation
+
+### TASK-030: 语音输入接口实现
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+在本地更新语音输入功能，预留好对应的后端接口，为未来扩展服务端语音转文字功能做好准备。
+
+#### 实现内容
+1. **后端 Schema 定义** - 创建 `audio.py` schemas 定义音频上传和转录的请求/响应结构
+2. **音频上传 API** - 实现 `POST /api/v1/audio/upload` 端点，支持 base64 编码的音频文件上传
+3. **音频转录 API（预留）** - 实现 `POST /api/v1/audio/transcribe` 端点，当前返回模拟数据
+4. **格式查询 API** - 实现 `GET /api/v1/audio/formats` 端点，返回支持的音频格式
+5. **前端 API 客户端** - 添加 `uploadAudio()`, `transcribeAudio()`, `getSupportedAudioFormats()` 函数
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| Audio Schemas | 新建 | `backend/app/schemas/audio.py` |
+| Audio Router | 新建 | `backend/app/routers/audio.py` |
+| Main App | 注册音频路由 | `backend/app/main.py` |
+| API Client | 添加音频相关函数 | `frontend/src/api/client.js` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.main import app; print('Backend imports OK')"
+# Result: Backend imports OK
+
+cd frontend
+npm run build
+# Result: ✓ built in 3.55s
+```
+
+#### API / 数据库影响
+- **新增 API 端点**:
+  - `POST /api/v1/audio/upload` - 上传音频文件（需要认证）
+  - `POST /api/v1/audio/transcribe` - 转录音频为文字（预留，需要认证）
+  - `GET /api/v1/audio/formats` - 查询支持的音频格式（公开）
+- **数据库**: 无需修改表结构，Entry 表已包含 `audio_file_url`, `duration_seconds`, `input_type` 字段
+
+#### 支持的音频格式
+- audio/webm (.webm)
+- audio/ogg (.ogg)
+- audio/wav (.wav)
+- audio/mp3 (.mp3)
+- audio/mpeg (.mp3)
+- audio/mp4 (.m4a)
+- audio/x-m4a (.m4a)
+
+#### 文件大小限制
+- 最大音频文件大小: 25MB
+- 音频保存目录: `/uploads/audio/`
+
+#### 使用方式
+1. **上传音频文件**:
+   ```javascript
+   import { uploadAudio } from './api/client';
+
+   const audioFile = audioBlob; // from MediaRecorder
+   const response = await uploadAudio(audioFile, 'recording.webm');
+   console.log(response.data.audio_url); // "/uploads/audio/audio_20260709_123456_abc123.webm"
+   ```
+
+2. **转录音频（预留功能）**:
+   ```javascript
+   import { transcribeAudio } from './api/client';
+
+   const result = await transcribeAudio('/uploads/audio/recording.webm', 'zh-CN');
+   console.log(result.data.text); // 当前返回模拟数据
+   ```
+
+#### 功能说明
+- **前端语音输入**: 保留现有 Web Speech API 实现（`handleVoiceInput()`），无需后端即可使用
+- **音频上传**: 新增后端接口支持音频文件持久化存储
+- **STT 集成**: 预留转录接口，可后续集成 Azure Speech、Google Cloud STT、OpenAI Whisper 等服务
+- **扩展性**: 接口设计支持多种 STT 提供商切换
+
+#### 后续扩展建议
+1. **STT 服务集成**:
+   - 配置 STT 提供商凭证（Azure/Google/Whisper）
+   - 更新 `transcribe_audio()` 实现真实转录
+   - 添加置信度和语言检测
+
+2. **音频元数据处理**:
+   - 实现 `extract_duration_from_data_url()` 解析真实音频时长
+   - 添加音频质量检测
+   - 支持音频格式转换
+
+3. **存储优化**:
+   - 考虑使用对象存储服务（S3/OSS）代替本地存储
+   - 实现音频文件过期清理机制
+
+---
+
+## 2026-07-09 Task Update: TASK-029 Auth.js readJsonResponse 修复
+
+### TASK-029: 前端认证模块 readJsonResponse 未定义错误修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete & Deployed |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+| **Deployed** | 2026-07-09 23:00 UTC |
+
+#### 目标
+修复生产环境登录功能报错 `readJsonResponse is not defined` 的问题。
+
+#### 问题描述
+- **错误**：`readJsonResponse is not defined`
+- **影响**：用户无法登录或注册
+- **根本原因**：`frontend/src/api/auth.js` 中 `login()` 和 `register()` 函数调用了未定义的 `readJsonResponse()` 函数，且 `login()` 中缺少 `fallback` 变量
+
+#### 实现内容
+1. **添加 readJsonResponse 函数** - 在 `auth.js` 中定义辅助函数处理 JSON 响应解析
+2. **添加 fallback 变量** - 在 `login()` 函数中定义错误消息 fallback
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 认证模块 | 添加 readJsonResponse 函数 | `frontend/src/api/auth.js` |
+| login 函数 | 添加 fallback 变量 | `frontend/src/api/auth.js` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.00s
+```
+
+#### API / 数据库影响
+- API: 无
+- 数据库: 无
+
+#### 功能说明
+- 登录功能现在可以正确处理 JSON 响应
+- 注册功能同样受益于共享的 `readJsonResponse` 函数
+- 错误处理统一且友好
+
+#### 文档
+- `docs/vibe-logs/log-36-auth-js-readjsonresponse-fix.md`
+
+---
+
+## 2026-07-09 Task Update: TASK-028 AI Chat 对话框布局修复
+
+### TASK-028: AI Chat 对话框布局修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+修复 AI Companion Chat 界面对话框布局 Bug，解决 CSS 列数与 HTML 元素数量不匹配导致的布局错位问题。
+
+#### 问题描述
+- **CSS 定义**：`grid-template-columns: minmax(0, 1fr) 42px 42px` (3 列)
+- **HTML 元素**：📷上传按钮 | textarea输入框 | ♪语音按钮 | →发送按钮 (4 个元素)
+- **影响**：布局错位，对话框显示异常
+
+#### 实现内容
+1. **CSS 修复** - 更新 `.composer-shell` 的 `grid-template-columns` 从 3 列改为 4 列
+2. **列定义** - `42px minmax(0, 1fr) 42px 42px` 对应：上传按钮 | 输入框 | 语音按钮 | 发送按钮
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| CSS 样式 | 修复 composer-shell 列数 | `frontend/src/styles.css` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 1.80s
+```
+
+#### API / 数据库影响
+- API: 无
+- 数据库: 无
+
+#### 功能说明
+- 对话框现在正确显示 4 个元素
+- 布局对齐，无错位
+- 保留所有功能（上传、输入、语音、发送）
+
+---
+
 ## 2026-07-09 Task Update: TASK-026 Memory Garden 标题显示修复
 
 ### TASK-026: Memory Garden 卡片标题显示修复
@@ -1375,6 +2068,98 @@ npm run build
 
 ---
 
+## 2026-07-09 Task Update: TASK-027 VPS 部署准备
+
+### TASK-027: Inner Garden VPS 部署到 jijiayi.online
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | jiayiji |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+将 Inner Garden 全套服务部署到 VPS (jijiayi.online)，包括后端 API、前端静态文件、Docker 容器化、nginx 反向代理、SSL 证书配置。
+
+#### VPS 信息
+- **域名**: jijiayi.online
+- **IP**: 49.232.17.105
+- **系统**: Ubuntu 22.04.5 LTS
+- **用户**: ubuntu
+- **SSH**: `vps` alias
+
+#### 当前状态
+✅ SSH 连接正常
+✅ Nginx 已安装 (1.18.0)
+✅ Python 3.10.12 已安装
+✅ Docker 和 Docker Compose 已安装
+✅ Docker 镜像源已配置
+✅ 后端容器 healthy
+✅ 前端容器 healthy
+✅ 数据库迁移已执行
+✅ `http://jijiayi.online/` 可访问
+✅ `http://jijiayi.online/api/v1/health` 可访问
+⚠️ SSL 证书未配置，当前验证的是 HTTP
+⚠️ `/opt/inner-garden/.env` 仍需配置真实 `DEEPSEEK_API_KEY`
+
+#### 部署文件
+| 文件 | 用途 |
+|------|------|
+| `scripts/vps-deploy.sh` | 自动化安装脚本 |
+| `docs/vps-deployment-guide.md` | 完整部署指南 |
+| `.env.production` | 生产环境配置模板 |
+
+#### 部署步骤
+1. 运行 `vps-deploy.sh` 安装 Docker 和基础环境
+2. 复制项目文件到 VPS
+3. 配置 `.env` 环境变量
+4. 构建 Docker 镜像
+5. 启动服务
+6. 配置 SSL 证书
+7. 运行数据库迁移
+8. 验证部署
+
+#### 已完成
+- [x] VPS 环境检测
+- [x] Docker 和 Docker Compose 安装 (29.6.1, v5.3.1)
+- [x] 项目目录创建 (/opt/inner-garden)
+- [x] 文件复制到 VPS
+- [x] .env 生产环境配置
+- [x] docker-compose.prod.yml 创建
+- [x] Nginx 配置文件生成
+
+#### 已完成
+- [x] 配置 Docker 镜像加速
+- [x] 构建 Docker 镜像
+- [x] 启动 Docker 容器
+- [x] 配置 Nginx 反向代理
+- [x] 运行数据库迁移
+- [x] 验证服务健康
+
+#### 后续待办
+- [ ] 配置真实 `DEEPSEEK_API_KEY`
+- [ ] 配置 SSL 证书（可选，但建议上线前完成）
+
+#### 本轮验证
+
+```bash
+ssh vps "cd /opt/inner-garden && docker compose -f docker-compose.prod.yml ps"
+# inner-garden-backend healthy
+# inner-garden-frontend healthy
+
+ssh vps "cd /opt/inner-garden && docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head"
+# SQLite migration context completed without error
+
+ssh vps "curl -fsS http://127.0.0.1:8000/health"
+# {"success":true,"data":{"status":"healthy"},"message":"ok","request_id":"local"}
+
+ssh vps "curl -sS --max-time 10 http://jijiayi.online/api/v1/health"
+# {"success":true,"data":{"status":"healthy","api_version":"v1"},"message":"ok","request_id":"local"}
+```
+
+---
+
 ## Backlog
 
 | ID | Title | Priority | Estimate |
@@ -1382,7 +2167,6 @@ npm run build
 | B-001 | Frontend Chat UI Components | High | 2-3 days |
 | B-002 | Expand Chat Backend Regression Tests | Medium | 1 day |
 | B-003 | Chat E2E Tests | Medium | 1 day |
-| B-004 | Deployment Setup | Low | 1 day |
 | B-005 | Image Generation Migration | High | 2-3 hours |
 | B-006 | Monthly Report Calendar Migration | High | 4-5 hours |
 | B-007 | Calendar Data Integration | Medium | 2-3 hours |

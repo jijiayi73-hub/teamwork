@@ -9,6 +9,17 @@ const TOKEN_KEY = 'innergarden_access_token';
 const USER_KEY = 'innergarden_user';
 const REDIRECT_KEY = 'innergarden_redirect_after_login';
 
+/**
+ * 安全读取 JSON 响应
+ */
+async function readJsonResponse(response, fallback) {
+  try {
+    return await response.json();
+  } catch {
+    throw new Error(fallback || '请求失败，请稍后重试');
+  }
+}
+
 function formatAuthError(payload, fallback) {
   if (payload?.detail) {
     return typeof payload.detail === 'string' ? payload.detail : JSON.stringify(payload.detail);
@@ -97,6 +108,7 @@ export function getCurrentUser() {
  * @returns {Promise<{access_token: string, user: object}>}
  */
 export async function login(usernameOrEmail, password) {
+  const fallback = '登录失败，请确认后端服务已启动并稍后重试';
   const response = await fetch('/api/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },

@@ -32,6 +32,7 @@ router = APIRouter(tags=["memories"])
 UPLOAD_ROOT = Path(__file__).resolve().parents[2] / "data" / "uploads"
 PUBLIC_UPLOAD_PREFIX = "/uploads"
 ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/gif"}
+MAX_UPLOAD_IMAGE_BYTES = 12 * 1024 * 1024
 
 
 def _keywords_to_json(keywords: list[str]) -> str:
@@ -122,8 +123,8 @@ def upload_image(
         image_bytes = base64.b64decode(data_part, validate=True)
     except ValueError:
         raise HTTPException(status_code=422, detail="Invalid base64 image data")
-    if len(image_bytes) > 4 * 1024 * 1024:
-        raise HTTPException(status_code=413, detail="Image upload limit is 4MB")
+    if len(image_bytes) > MAX_UPLOAD_IMAGE_BYTES:
+        raise HTTPException(status_code=413, detail="Image upload limit is 12MB")
 
     UPLOAD_ROOT.mkdir(parents=True, exist_ok=True)
     stored_filename = f"{user.id}-{uuid4().hex}{suffix}"
