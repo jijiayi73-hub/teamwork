@@ -217,11 +217,104 @@ export async function pastSelfChat(memoryId, payload) {
   });
 }
 
+// ============================================================================
+// Admin API Functions
+// ============================================================================
+
+export async function listUsers() {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  return apiRequest('/admin/users');
+}
+
+export async function getUser(userId) {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  return apiRequest(`/admin/users/${userId}`);
+}
+
+export async function updateUser(userId, data) {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  return apiRequest(`/admin/users/${userId}`, {
+    method: 'PATCH',
+    body: JSON.stringify(data),
+  });
+}
+
+export async function deleteUser(userId) {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  return apiRequest(`/admin/users/${userId}`, { method: 'DELETE' });
+}
+
+export async function getLogEntries(filters = {}) {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  const params = new URLSearchParams();
+  if (filters.level) params.set('level', filters.level);
+  if (filters.limit) params.set('limit', filters.limit);
+  return apiRequest(`/logs/entries${params.toString() ? `?${params}` : ''}`);
+}
+
+export async function getLogStats() {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  return apiRequest('/logs/stats');
+}
+
+export async function clearLogs() {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  return apiRequest('/logs/clear', { method: 'POST' });
+}
+
 export async function getAdminStats() {
   if (!isAuthenticated()) {
     throw new Error('请先登录');
   }
   return apiRequest('/admin/stats/charts');
+}
+
+/**
+ * 请求密码重置邮件
+ * @param {string} email - 用户邮箱
+ */
+export async function requestPasswordReset(email) {
+  return apiRequest('/auth/password-reset/request', {
+    method: 'POST',
+    body: JSON.stringify({ email }),
+  });
+}
+
+/**
+ * 验证密码重置 token
+ * @param {string} token - 重置 token
+ */
+export async function verifyResetToken(token) {
+  return apiRequest('/auth/password-reset/verify', {
+    method: 'POST',
+    body: JSON.stringify({ token }),
+  });
+}
+
+/**
+ * 确认密码重置并设置新密码
+ * @param {string} token - 重置 token
+ * @param {string} newPassword - 新密码
+ */
+export async function confirmPasswordReset(token, newPassword) {
+  return apiRequest('/auth/password-reset/confirm', {
+    method: 'POST',
+    body: JSON.stringify({ token, new_password: newPassword }),
+  });
 }
 
 // Chat API functions are exported from './chat.js'

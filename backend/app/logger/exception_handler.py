@@ -38,6 +38,17 @@ def add_exception_handlers(app: FastAPI) -> None:
             method=request.method,
         )
 
+        # Store in in-memory log storage
+        from .storage import add_log_to_storage
+        add_log_to_storage(
+            "warning",
+            f"HTTP {exc.status_code}: {exc.detail}",
+            request_id=request_id,
+            status_code=exc.status_code,
+            path=request.url.path,
+            method=request.method,
+        )
+
         # Map status codes to error codes
         error_code = _map_status_to_error_code(exc.status_code)
 
@@ -132,6 +143,17 @@ def add_exception_handlers(app: FastAPI) -> None:
             error_type=type(exc).__name__,
             error_message=str(exc),
             traceback=traceback.format_exc(),
+            path=request.url.path,
+            method=request.method,
+        )
+
+        # Store in in-memory log storage
+        from .storage import add_log_to_storage
+        add_log_to_storage(
+            "error",
+            f"Unhandled exception: {type(exc).__name__}: {str(exc)}",
+            request_id=request_id,
+            error_type=type(exc).__name__,
             path=request.url.path,
             method=request.method,
         )

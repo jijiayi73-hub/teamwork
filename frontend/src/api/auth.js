@@ -21,24 +21,6 @@ function formatAuthError(payload, fallback) {
   return fallback;
 }
 
-async function readJsonResponse(response, fallback) {
-  const text = await response.text();
-  if (!text) {
-    return {};
-  }
-
-  try {
-    return JSON.parse(text);
-  } catch {
-    if (!response.ok) {
-      return {
-        message: fallback,
-      };
-    }
-    throw new Error('服务器返回了无法解析的数据，请稍后重试');
-  }
-}
-
 /**
  * 从 localStorage 获取存储的 token
  */
@@ -110,23 +92,22 @@ export function getCurrentUser() {
 
 /**
  * 用户登录
- * @param {string} email - 用户邮箱
+ * @param {string} usernameOrEmail - 用户名或邮箱
  * @param {string} password - 用户密码
  * @returns {Promise<{access_token: string, user: object}>}
  */
-export async function login(email, password) {
-  const fallback = '登录失败，请确认后端服务已启动并稍后重试';
+export async function login(usernameOrEmail, password) {
   const response = await fetch('/api/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username_or_email: usernameOrEmail, password }),
   });
 
   const payload = await readJsonResponse(response, fallback);
 
   if (!response.ok) {
-    const message = formatAuthError(payload, fallback);
-    throw new Error(message);
+    // 隐藏技术细节，统一返回简体中文错误信息
+    throw new Error('用户名、邮箱或密码错误');
   }
 
   return saveSession(payload.data);
@@ -150,8 +131,8 @@ export async function register(username, email, password) {
   const payload = await readJsonResponse(response, fallback);
 
   if (!response.ok) {
-    const message = formatAuthError(payload, fallback);
-    throw new Error(message);
+    // 隐藏技术细节，统一返回简体中文错误信息
+    throw new Error('注册失败，用户名或邮箱可能已被使用');
   }
 
   return saveSession(payload.data);

@@ -21,21 +21,29 @@ class ImageGenerationRequest(BaseModel):
         max_length=50,
         description="Optional emotion to influence image style (e.g., 'calm', 'joyful', 'melancholy')",
     )
+    provider: Optional[Literal["openai", "volces"]] = Field(
+        default="openai",
+        description="AI provider for image generation",
+    )
     style: Optional[Literal["vivid", "natural"]] = Field(
         default="vivid",
         description="Image style for DALL-E 3: 'vivid' for hyper-realistic, 'natural' for more realistic",
     )
-    size: Optional[Literal["1024x1024", "1792x1024", "1024x1792"]] = Field(
+    size: Optional[Literal["1024x1024", "1792x1024", "1024x1792", "2K"]] = Field(
         default="1024x1024",
-        description="Image size in pixels",
+        description="Image size in pixels (2K for Volces Ark)",
     )
     quality: Optional[Literal["standard", "hd"]] = Field(
         default="standard",
         description="Image quality: 'standard' or 'hd' (DALL-E 3 only)",
     )
-    model: Optional[Literal["dall-e-3", "dall-e-2"]] = Field(
+    model: Optional[Literal["dall-e-3", "dall-e-2", "doubao-seedream-5-0-260128"]] = Field(
         default="dall-e-3",
-        description="DALL-E model version",
+        description="Image generation model",
+    )
+    watermark: Optional[bool] = Field(
+        default=False,
+        description="Whether to add watermark to generated image (Volces Ark only)",
     )
 
 

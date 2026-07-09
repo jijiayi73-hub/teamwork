@@ -117,6 +117,17 @@ class RequestLoggingMiddleware(BaseHTTPMiddleware):
         else:
             logger.error("HTTP request failed", **log_data)
 
+        # Also store in in-memory storage
+        from .storage import add_log_to_storage
+        log_level = "error" if not success else "info"
+        if response and response.status_code >= 400:
+            log_level = "error" if response.status_code >= 500 else "warning"
+        add_log_to_storage(
+            log_level,
+            f"{request.method} {request.url.path} - {response.status_code if response else 'Failed'}",
+            **log_data
+        )
+
     def _get_client_ip(self, request: Request) -> str:
         """Get client IP address from request, accounting for proxies."""
         # Check for forwarded headers
