@@ -1,5 +1,148 @@
 # Inner Garden Task Board
 
+## 2026-07-09 Task Update: TASK-014 AI Companion Chat Dialog Fix
+
+### TASK-014: AI Companion Chat Dialog Layout Repair
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### Goal
+Repair the `/#/ai-companion-chat` dialog/composer so the text input is usable and no unauthorized chat content flashes before login redirect.
+
+#### Implementation
+1. Updated protected route rendering in `AppFixed.jsx` so unauthenticated protected routes return `LoginPage` immediately after `requireAuth()`.
+2. Updated `.composer-shell` in `styles.css` from four grid columns to three columns, matching the actual textarea, voice, and send controls.
+
+#### Changed Files
+| Component | Action | File |
+| --- | --- | --- |
+| Frontend app | Guard protected route render path | `frontend/src/AppFixed.jsx` |
+| Frontend styles | Repair chat composer grid | `frontend/src/styles.css` |
+| State docs | Recorded fix and validation | `docs/state/current-status.md`, `docs/state/task-board.md` |
+
+#### Validation
+```bash
+cd frontend
+npm.cmd run build
+# Result: passed; Vite chunk-size warning only
+
+npm.cmd run test:contract
+# Result: chat adapter contract ok; auth invalidation ok
+
+# Browser check
+# Result: unauthenticated /#/ai-companion-chat renders LoginPage without mounting .chat-window
+```
+
+#### API / DB Impact
+- No API route, request/response contract, status code, database table, or migration changed.
+
+---
+
+## 2026-07-09 Task Update: TASK-013 Frontend Auto Cover Generation
+
+### TASK-013: Chat-Driven Automatic Memory Card Covers
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### Goal
+Hide user-facing custom image upload controls in the chat-to-card flow and generate Memory Card cover images automatically from the conversation-derived diary context.
+
+#### Implementation
+1. Removed visible custom image upload/file input controls from `ChatPage`.
+2. Replaced manual cover URL/upload controls in `DiaryResultPage` with a read-only auto-cover prompt preview.
+3. Added `generateImage()` to the shared frontend API client for `POST /api/v1/images/generate`.
+4. Updated save flow so `createDiary()` is followed by AI cover generation, then `createMemory()` stores `cover_image_url` and `cover_prompt`.
+5. Rebuilt `buildWatercolorPrompt()` to use title, emotion, diary content, raw transcript, and conversation messages with a soft watercolor cover style.
+6. Fixed existing mojibake-broken JSX/string literals in `AppFixed.jsx` that blocked production build verification.
+
+#### Changed Files
+| Component | Action | File |
+| --- | --- | --- |
+| Frontend app | Updated chat, diary result, prompt generation, and syntax-broken UI text | `frontend/src/AppFixed.jsx` |
+| Frontend API client | Added image generation request helper | `frontend/src/api/client.js` |
+| State docs | Recorded implementation status | `docs/state/current-status.md` |
+| Vibe Log | Added implementation trace | `docs/vibe-logs/log-25-frontend-auto-cover-generation.md` |
+
+#### Validation
+```bash
+cd frontend
+npm.cmd run build
+# Result: passed; Vite chunk-size warning only
+
+npm.cmd run test:contract
+# Result: chat adapter contract ok; auth invalidation ok
+```
+
+#### API / DB Impact
+- No backend route, schema, status code, database table, or migration changed.
+- Frontend now consumes the existing `POST /api/v1/images/generate` endpoint.
+
+---
+
+## 2026-07-09 Task Update: TASK-012 AI Image Generation Implementation
+
+### TASK-012: AI Image Generation API
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+实现 AI 图片生成功能，集成 DALL-E API，为 Memory Card 提供自动封面生成能力。统一环境配置，与 chatbot 配置对齐。
+
+#### 实现内容
+1. **扩展 AIProvider** - 添加 `generate_image()` 方法支持 DALL-E 2/3
+2. **图片生成服务** - 创建 `ImageGenerationService` 处理生图、下载、保存逻辑
+3. **图片生成 API** - 新增 `POST /api/v1/images/generate` 端点
+4. **Schema 定义** - 完整的请求/响应 Schema 与验证
+5. **测试覆盖** - 16 个测试用例覆盖核心流程和错误处理
+6. **配置对齐** - `ImageGenerationService` 使用 `settings` 配置与 chatbot 保持一致
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| AIProvider | 添加 `generate_image()` 和 `AIImageResponse` | `backend/app/services/ai_provider.py` |
+| Image Gen Service | 新建图片生成服务 + 配置对齐 | `backend/app/services/image_generation_service.py` |
+| Image Router | 新建 API 路由 | `backend/app/routers/images.py` |
+| Image Schemas | 新建 Schema | `backend/app/schemas/images.py` |
+| Main App | 注册新路由 | `backend/app/main.py` |
+| Tests | 新建测试文件 | `backend/tests/test_image_generation.py` |
+| State Docs | 更新配置对齐说明 | `docs/state/current-status.md` |
+
+#### 验证
+```bash
+cd backend
+py -m pytest tests/test_image_generation.py -v
+# Result: 16 passed, 6 warnings
+```
+
+#### API 变更
+- 新增 `POST /api/v1/generate-image` - AI 图片生成端点
+- 请求参数：`prompt`, `emotion`, `size`, `quality`, `style`, `model`
+- 响应包含：`image_url`, `prompt_used`, `model`, `generation_time_ms`
+
+#### 文档
+- `docs/vibe-logs/log-24-ai-image-generation.md`
+
+#### 成本说明
+- DALL-E 3: $0.04/张 (1024x1024)
+- DALL-E 2: $0.02/张
+
+---
+
 ## 2026-07-09 Task Update: TASK-009 Memory Card Deletion Fix
 
 ### TASK-009: Memory Card Deletion with Associated Conversations

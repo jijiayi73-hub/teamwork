@@ -4,13 +4,13 @@ import {
   createEntry,
   createMemory,
   deleteMemory,
+  generateImage,
   getAdminStats,
   getMemory,
   getStatsOverview,
   healthCheck,
   listMemories,
   pastSelfChat,
-  uploadImage,
 } from './api/client';
 import { getMessages, listConversations, sendChatMessage } from './api/chat';
 import { getCurrentUser, logout, requireAuth } from './api/auth';
@@ -26,7 +26,7 @@ const QUESTION_BANK = [
   '如果只选一个画面代表今天，会是什么？',
   '今天有没有一个很小但值得被记住的瞬间？',
   '现在的你最希望被怎样理解？',
-  '这件事里，有没有一点点已经被你撑过去的部分？',
+  '这件事里，有没有一点已经被你撑过去的部分？',
 ];
 
 export default function App() {
@@ -41,7 +41,9 @@ export default function App() {
   }, []);
 
   if (route.name === 'login') return <LoginPage />;
-  if (['chat', 'diary', 'garden', 'detail', 'admin'].includes(route.name)) requireAuth();
+  if (['chat', 'diary', 'garden', 'detail', 'admin'].includes(route.name) && !requireAuth()) {
+    return <LoginPage />;
+  }
 
   return (
     <main className="relative min-h-screen overflow-hidden bg-[#10131e] font-body text-white">
@@ -132,9 +134,6 @@ function ChatPage() {
   const [text, setText] = useState('');
   const [note, setNote] = useState('');
   const [isSending, setIsSending] = useState(false);
-  const [imagePreview, setImagePreview] = useState('');
-  const [imageUrl, setImageUrl] = useState('');
-  const [isUploading, setIsUploading] = useState(false);
   const [conversationId, setConversationId] = useState(null);
   const [conversations, setConversations] = useState([]);
   const [isListening, setIsListening] = useState(false);
@@ -186,31 +185,14 @@ function ChatPage() {
       const nextConversationId = response.data?.conversation?.id || conversationId;
       setMessages(nextMessages);
       setConversationId(nextConversationId);
-      writeDraftFromMessages(nextMessages, nextConversationId, imageUrl || imagePreview);
+      writeDraftFromMessages(nextMessages, nextConversationId);
       setNote('已保存真实对话草稿，可以继续聊，也可以生成日记。');
       loadConversations();
     } catch (error) {
       setMessages(optimisticMessages);
-      setNote(`发送失败：${error.message}。用户消息已保留，可重试或生成草稿。`);
+      setNote(`发送失败：${error.message}。用户消息已保留，可以重试或生成草稿。`);
     } finally {
       setIsSending(false);
-    }
-  }
-
-  async function handleImageUpload(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setImagePreview(URL.createObjectURL(file));
-    setIsUploading(true);
-    setNote('正在上传图片...');
-    try {
-      const response = await uploadImage(file);
-      setImageUrl(response.data.url);
-      setNote('图片已上传并可作为记忆卡片封面保存。');
-    } catch (error) {
-      setNote(`图片上传失败：${error.message}`);
-    } finally {
-      setIsUploading(false);
     }
   }
 
@@ -218,14 +200,14 @@ function ChatPage() {
     const question = QUESTION_BANK[Math.floor(Math.random() * QUESTION_BANK.length)];
     const nextMessages = [...messages, { role: 'assistant', content: question }];
     setMessages(nextMessages);
-    writeDraftFromMessages(nextMessages, conversationId, imageUrl || imagePreview);
+    writeDraftFromMessages(nextMessages, conversationId);
   }
 
   function handleVoiceInput() {
     const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
     if (!SpeechRecognition) {
       setText((current) => `${current}${current ? ' ' : ''}今天有一些说不清的感受，我想先慢慢放在这里。`);
-      setMessages((current) => [...current, { content: '没关系，语音现在先用本地文字替代。你可以继续补一点点，我会跟着你的节奏。' }]);
+      setMessages((current) => [...current, { content: '没关系，语音现在先用本地文字替代。你可以继续补一点点，我会跟着你的节奏。', role: 'assistant' }]);
       setNote('当前浏览器不支持本地语音识别，已填入一段示例语音文本。');
       return;
     }
@@ -259,18 +241,25 @@ function ChatPage() {
     try {
       const response = await createEntry(transcript, conversationId);
       const entry = response.data;
-      window.localStorage.setItem(DRAFT_KEY, JSON.stringify({
+      const draft = {
         entry_id: entry.id,
         conversation_id: conversationId,
         title: entry.draft_title || '今天的温柔记录',
         content: entry.draft_content || transcript,
         raw_content: transcript,
         conversation_messages: messages,
-        image_preview: imagePreview,
-        cover_image_url: imageUrl,
+        cover_prompt: buildWatercolorPrompt({
+          title: entry.draft_title || '今天的记忆',
+          content: entry.draft_content || transcript,
+          raw_content: transcript,
+          conversation_messages: messages,
+          analysis: entry.analysis,
+        }),
+        cover_image_url: '',
         analysis: entry.analysis,
         source: 'chat_api',
-      }));
+      };
+      window.localStorage.setItem(DRAFT_KEY, JSON.stringify(draft));
       window.location.hash = '#/diary-result';
     } catch (error) {
       setNote(`生成日记草稿失败：${error.message}`);
@@ -284,19 +273,17 @@ function ChatPage() {
           backgroundOpacity={0.62}
           className="chat-particle-wave"
           fit="cover"
-          imageUrl={imagePreview || imageUrl || undefined}
           interactive
-          particleSize={imagePreview || imageUrl ? 16 : 14}
+          particleSize={14}
           waveSpeed={1.35}
           waveStrength={0.28}
         />
       </Suspense>
-      {(imagePreview || imageUrl) && <div aria-hidden="true" className="chat-photo-backdrop" style={{ backgroundImage: `url(${imageUrl || imagePreview})` }} />}
       <div className="chat-stage">
         <div className="text-center">
           <p className="text-xs uppercase tracking-[0.34em] text-[#c8e0ff]/70">AI Companion Chat</p>
           <h1 className="mt-4 font-display text-4xl leading-tight text-white sm:text-5xl">今天想记录什么？</h1>
-          <p className="mt-3 text-sm text-white/58">亦言亦思皆为序章</p>
+          <p className="mt-3 text-sm text-white/58">你说的话会成为封面灵感，不需要上传图片。</p>
         </div>
         <section className="chat-window">
           {conversations.length > 0 && (
@@ -318,10 +305,6 @@ function ChatPage() {
           </div>
           {note && <p className="chat-note">{note}</p>}
           <div className="composer-shell">
-            <label className="composer-icon-button" title="上传图片">
-              <input accept="image/*" className="hidden" onChange={handleImageUpload} type="file" />
-              <span aria-hidden="true">{isUploading ? '...' : '+'}</span>
-            </label>
             <textarea
               className="composer-input"
               onChange={(event) => setText(event.target.value)}
@@ -340,19 +323,21 @@ function ChatPage() {
               onClick={handleVoiceInput}
               type="button"
             >
-              <span aria-hidden="true">⌁</span>
+              <span aria-hidden="true">♪</span>
             </button>
             <button aria-label="发送" className="composer-send-button" disabled={isSending || !text.trim()} onClick={handleSend} type="button">
-              <span aria-hidden="true">{isSending ? '…' : '↑'}</span>
+              <span aria-hidden="true">{isSending ? '…' : '→'}</span>
             </button>
           </div>
-          <button className="generate-link" onClick={handleGenerateDiary} type="button">我说完了，生成日记</button>
+          <div className="flex flex-wrap items-center justify-center gap-3">
+            <button className="generate-link" onClick={handleGenerateDiary} type="button">我说完了，生成日记</button>
+            <button className="generate-link" onClick={changeQuestion} type="button">换一个问题</button>
+          </div>
         </section>
       </div>
     </section>
   );
 }
-
 function DiaryResultPage() {
   const draft = useMemo(() => readJson(DRAFT_KEY), []);
   const [title, setTitle] = useState(draft?.title || '');
@@ -360,7 +345,6 @@ function DiaryResultPage() {
   const [emotion, setEmotion] = useState(draft?.analysis?.primary_emotion || 'calm');
   const [emotionColor, setEmotionColor] = useState('#8fb8ff');
   const [coverImageUrl, setCoverImageUrl] = useState(draft?.cover_image_url || '');
-  const [coverPrompt, setCoverPrompt] = useState(buildCoverPrompt(draft, emotion));
   const [keywords, setKeywords] = useState(extractKeywords(draft));
   const [style, setStyle] = useState('温柔、克制、像写给自己的备忘');
   const [status, setStatus] = useState('');
@@ -368,7 +352,6 @@ function DiaryResultPage() {
   const [existingMemoryId, setExistingMemoryId] = useState(null);
   const [checkingExisting, setCheckingExisting] = useState(false);
 
-  // Check if a memory card already exists for this entry
   useEffect(() => {
     async function checkExistingMemory() {
       if (!draft?.entry_id) return;
@@ -380,10 +363,10 @@ function DiaryResultPage() {
         );
         if (existingMemory) {
           setExistingMemoryId(existingMemory.id);
-          setStatus('该草稿已保存为记忆卡片，点击下方按钮查看。');
+          setStatus('这份草稿已经保存为记忆卡片，可以直接查看。');
         }
       } catch (error) {
-        // Silently fail - we'll handle it during save
+        setStatus(`检查已有记忆卡片失败：${error.message}`);
       } finally {
         setCheckingExisting(false);
       }
@@ -396,39 +379,19 @@ function DiaryResultPage() {
     setStatus('已按所选 AI 文风调整正文，可继续编辑后保存。');
   }
 
-  async function handleCoverUpload(event) {
-    const file = event.target.files?.[0];
-    if (!file) return;
-    setStatus('正在上传封面图...');
-    try {
-      const response = await uploadImage(file);
-      setCoverImageUrl(response.data.url);
-      setStatus('封面图已上传。');
-    } catch (error) {
-      setStatus(`封面上传失败：${error.message}`);
-    }
-  }
-
-  function generateCoverPrompt() {
-    const nextPrompt = buildCoverPrompt({ ...draft, title, content }, emotion);
-    setCoverPrompt(nextPrompt);
-    setStatus('已生成封面图提示词，可保存到记忆卡片。');
-  }
-
   async function handleSave() {
     if (!draft?.entry_id) {
       setStatus('缺少 entry_id，请先从 AI Companion Chat 生成草稿。');
       return;
     }
 
-    // If we already know a memory card exists, redirect to it
     if (existingMemoryId) {
       window.location.hash = `#/memory-garden/${existingMemoryId}`;
       return;
     }
 
     setIsSaving(true);
-    setStatus('正在保存 diary 和 memory card...');
+    setStatus('正在保存 diary，并根据对话生成封面...');
     try {
       const diaryResponse = await createDiary({
         entry_id: draft.entry_id,
@@ -437,9 +400,27 @@ function DiaryResultPage() {
         diary_date: new Date().toISOString().slice(0, 10),
         is_favorite: false,
       });
+      const coverPrompt = buildWatercolorPrompt({ ...draft, title, content, emotion });
+      let generatedCoverImageUrl = coverImageUrl;
+      if (!generatedCoverImageUrl) {
+        try {
+          const imageResponse = await generateImage({
+            prompt: coverPrompt,
+            emotion,
+            style: 'natural',
+            size: '1024x1024',
+            quality: 'standard',
+            model: 'dall-e-3',
+          });
+          generatedCoverImageUrl = imageResponse.data?.image_url || '';
+          setCoverImageUrl(generatedCoverImageUrl);
+        } catch (imageError) {
+          setStatus(`封面生成失败，将先保存记忆卡片并保留提示词：${imageError.message}`);
+        }
+      }
       const memoryResponse = await createMemory({
         diary_id: diaryResponse.data.id,
-        cover_image_url: coverImageUrl || draft.image_preview || null,
+        cover_image_url: generatedCoverImageUrl || null,
         cover_prompt: coverPrompt,
         emotion_label: emotion,
         emotion_color: emotionColor,
@@ -449,10 +430,8 @@ function DiaryResultPage() {
       window.localStorage.removeItem(DRAFT_KEY);
       window.location.hash = `#/memory-garden/${memoryResponse.data.id}`;
     } catch (error) {
-      // Handle 409 Conflict errors gracefully
       if (error.message.includes('already exists') || error.message.includes('409')) {
-        setStatus('该内容已保存，正在查找现有记忆卡片...');
-        // Try to find the existing memory card
+        setStatus('这份内容已保存，正在查找已有记忆卡片...');
         try {
           const response = await listMemories();
           const existingMemory = (response.data || []).find(
@@ -464,7 +443,7 @@ function DiaryResultPage() {
             return;
           }
         } catch (searchError) {
-          // Fall through to generic error message
+          setStatus(`查找已有记忆卡片失败：${searchError.message}`);
         }
       }
       setStatus(`保存失败：${error.message}`);
@@ -474,7 +453,7 @@ function DiaryResultPage() {
   }
 
   return (
-    <PageShell eyebrow="Diary Result" title="把倾诉整理成日记" subtitle="这里可以选择情绪、情绪底色、封面图和 AI 文风；保存后会创建独立 Memory Card。">
+    <PageShell eyebrow="Diary Result" title="把倾诉整理成日记" subtitle="封面会由 AI 根据对话自动生成，也会保存对应提示词。">
       <div className="grid gap-6 lg:grid-cols-[1fr_340px]">
         <section className="panel space-y-4">
           {!draft ? (
@@ -491,7 +470,7 @@ function DiaryResultPage() {
                 <a className="primary-action" href={`#/memory-garden/${existingMemoryId}`}>查看已保存的记忆卡片</a>
               ) : (
                 <button className="primary-action" disabled={isSaving || checkingExisting} onClick={handleSave} type="button">
-                  {isSaving ? '保存中...' : checkingExisting ? '检查中...' : '保存到 Memory Garden'}
+                  {isSaving ? '保存并生成封面中...' : checkingExisting ? '检查中...' : '保存到 Memory Garden'}
                 </button>
               )}
             </>
@@ -510,12 +489,10 @@ function DiaryResultPage() {
               ))}
             </div>
           </ControlLabel>
-          <ControlLabel label="生成/选择封面图">
-            <input className="input-surface" onChange={(event) => setCoverImageUrl(event.target.value)} placeholder="/uploads/cover.png 或图片 URL" value={coverImageUrl} />
-            <label className="secondary-action mt-3 w-full">上传封面图<input accept="image/*" className="hidden" onChange={handleCoverUpload} type="file" /></label>
-            <button className="secondary-action mt-3 w-full" onClick={generateCoverPrompt} type="button">生成封面提示词</button>
+          <ControlLabel label="自动封面提示词">
+            <textarea className="input-surface min-h-28 resize-none text-xs leading-6" readOnly value={buildWatercolorPrompt({ ...draft, title, content, emotion })} />
+            {coverImageUrl && <div className="memory-cover" style={{ backgroundImage: `url(${assetUrl(coverImageUrl)})` }} />}
           </ControlLabel>
-          <textarea className="input-surface min-h-24 text-sm" onChange={(event) => setCoverPrompt(event.target.value)} value={coverPrompt} />
           <ControlLabel label="重新生成/调整 AI 文风">
             <input className="input-surface" onChange={(event) => setStyle(event.target.value)} value={style} />
             <button className="secondary-action mt-3 w-full" onClick={regenerateTone} type="button">调整文风</button>
@@ -529,7 +506,6 @@ function DiaryResultPage() {
     </PageShell>
   );
 }
-
 function MemoryGardenPage() {
   const [memories, setMemories] = useState([]);
   const [status, setStatus] = useState('');
@@ -656,7 +632,6 @@ function MemoryDetailPage({ memoryId }) {
             <p className="text-sm text-white/64">Emotion</p>
             <p className="font-display text-4xl" style={{ color: memory.emotion_color }}>{memory.emotion_label}</p>
             <div className="keyword-row">{memory.keywords.map((item) => <span key={item}>{item}</span>)}</div>
-            <p className="text-sm leading-7 text-white/64">{memory.cover_prompt}</p>
             <div className="past-self-box">
               {pastSelfMessages.map((message, index) => (
                 <div className={message.role === 'user' ? 'chat-bubble chat-bubble-user' : 'chat-bubble chat-bubble-ai'} key={`${message.role}-${index}`}>{message.content}</div>
@@ -792,12 +767,12 @@ function MonthlyReport() {
 
   function getMoodEmoji(memory) {
     const emotion = String(getDiaryEmotion(memory)).trim().toLowerCase();
-    if (['joy', 'happy', 'happiness', '喜悦', '开心', '快乐'].includes(emotion)) return '😄';
-    if (['calm', 'peaceful', 'peace', '平静', '安定'].includes(emotion)) return '🙂';
-    if (['nostalgia', 'missing', 'miss', '怀念', '想念'].includes(emotion)) return '🌙';
-    if (['anxiety', 'anxious', 'fear', '焦虑', '紧张'].includes(emotion)) return '😟';
-    if (['sad', 'sadness', '难过', '伤心', '低落'].includes(emotion)) return '😔';
-    return '🌱';
+    if (['joy', 'happy', 'happiness', '开心', '快乐'].includes(emotion)) return '☀';
+    if (['calm', 'peaceful', 'peace', '平静', '安定'].includes(emotion)) return '○';
+    if (['nostalgia', 'missing', 'miss', '怀念', '想念'].includes(emotion)) return '◇';
+    if (['anxiety', 'anxious', 'fear', '焦虑', '紧张'].includes(emotion)) return '△';
+    if (['sad', 'sadness', '难过', '伤心', '低落'].includes(emotion)) return '◌';
+    return '✦';
   }
 
   function getDiaryImage(memory) {
@@ -937,19 +912,19 @@ function MonthlyReport() {
         <footer className="monthly-report-footer">
           <nav className="monthly-report-bottom-nav" aria-label="Monthly report navigation">
             <button className="monthly-report-tab is-active" type="button" aria-label="Home">
-              <span className="monthly-report-tab-icon">⌂</span>
+              <span className="monthly-report-tab-icon">♪</span>
               <span>Home</span>
             </button>
             <button className="monthly-report-tab" type="button" aria-label="Sleep">
-              <span className="monthly-report-tab-icon">☾</span>
+              <span className="monthly-report-tab-icon">☼</span>
               <span>Sleep</span>
             </button>
             <button className="monthly-report-tab" type="button" aria-label="Discover">
-              <span className="monthly-report-tab-icon">◇</span>
+              <span className="monthly-report-tab-icon">◆</span>
               <span>Discover</span>
             </button>
             <button className="monthly-report-tab" type="button" aria-label="Profile">
-              <span className="monthly-report-tab-icon">○</span>
+              <span className="monthly-report-tab-icon">◇</span>
               <span>Profile</span>
             </button>
           </nav>
@@ -958,7 +933,7 @@ function MonthlyReport() {
       </div>
 
       {toastVisible && (
-        <div className="monthly-report-toast" role="status">这一天还没有记录哦</div>
+        <div className="monthly-report-toast" role="status">这一天还没有记录。</div>
       )}
 
       {selectedEntry && (
@@ -973,7 +948,7 @@ function MonthlyReport() {
               <img src={assetUrl(selectedEntry.displayImage)} alt={`${selectedEntry.title || selectedEntry.dateKey} summary`} />
             ) : (
               <div className="monthly-report-modal-image-fallback" aria-hidden="true">
-                {selectedEntry.emoji || '🌱'}
+                {selectedEntry.emoji || '✦'}
               </div>
             )}
             <div className="monthly-report-modal-content">
@@ -1041,15 +1016,16 @@ function RefreshIcon() {
   return <svg aria-hidden="true" fill="none" viewBox="0 0 24 24"><path d="M18.75 8.25A7.25 7.25 0 0 0 6.2 6.1L4.75 7.75" /><path d="M4.75 4.25v3.5h3.5" /><path d="M5.25 15.75a7.25 7.25 0 0 0 12.55 2.15l1.45-1.65" /><path d="M19.25 19.75v-3.5h-3.5" /></svg>;
 }
 
-function writeDraftFromMessages(messages, conversationId, imageUrl) {
+function writeDraftFromMessages(messages, conversationId) {
+  const transcript = transcriptFromMessages(messages);
   window.localStorage.setItem(DRAFT_KEY, JSON.stringify({
     conversation_id: conversationId,
     title: 'AI 对话记录',
-    content: transcriptFromMessages(messages),
-    raw_content: transcriptFromMessages(messages),
+    content: transcript,
+    raw_content: transcript,
     conversation_messages: messages,
-    cover_image_url: imageUrl?.startsWith('/uploads/') ? imageUrl : '',
-    image_preview: imageUrl,
+    cover_prompt: buildWatercolorPrompt({ title: 'AI 对话记录', raw_content: transcript, conversation_messages: messages }),
+    cover_image_url: '',
     analysis: { primary_emotion: 'calm', summary: '来自 AI 对话的记录', suggestion: '可以继续补充，或整理成日记。' },
   }));
 }
@@ -1117,7 +1093,21 @@ function getCoverPalette(emotion) {
 }
 
 function buildWatercolorPrompt(diary) {
-  return `治愈系水彩插画，淡油画质感，梦境花园氛围，低饱和度，柔和光感，半透明水彩，植物隐喻，安静、温柔、带有回忆感，不要出现文字，不要出现真实人脸，不要恐怖、压抑、血腥元素。日记标题：${diary?.title || ''}；情绪：${diary?.emotion || diary?.analysis?.primary_emotion || ''}。`;
+  const title = diary?.title || 'Inner Garden memory card';
+  const emotion = diary?.emotion || diary?.analysis?.primary_emotion || 'calm';
+  const sourceText = [
+    diary?.content,
+    diary?.raw_content,
+    transcriptFromMessages(diary?.conversation_messages || []),
+  ].filter(Boolean).join('\n').replace(/\s+/g, ' ').slice(0, 1200);
+  return [
+    'Create a poetic, beautiful watercolor cover image for an emotional diary memory card.',
+    'Use the conversation and diary content as inspiration, but do not add readable text, UI, logos, real faces, violence, horror, or medical imagery.',
+    'Style: soft therapeutic watercolor illustration, dreamy garden atmosphere, gentle light, translucent washes, elegant composition, cinematic but quiet, suitable for a reflective campus diary app.',
+    `Diary title: ${title}.`,
+    `Dominant emotion: ${emotion}.`,
+    sourceText ? `Conversation-derived imagery cues: ${sourceText}` : '',
+  ].filter(Boolean).join(' ').slice(0, 3800);
 }
 
 function escapeXml(value) {
@@ -1131,7 +1121,6 @@ function escapeXml(value) {
 function generateFallbackCover(diary) {
   const emotion = diary?.emotion || diary?.analysis?.primary_emotion || 'calm';
   const palette = getCoverPalette(emotion);
-  const prompt = buildWatercolorPrompt(diary);
   const flowers = Array.from({ length: 16 }, (_, index) => {
     const x = 100 + ((index * 73) % 720);
     const y = 155 + ((index * 47) % 330);
@@ -1140,7 +1129,7 @@ function generateFallbackCover(diary) {
     return `<circle cx="${x}" cy="${y}" r="${r}" fill="${fill}" opacity="0.34"/>`;
   }).join('');
   const svg = `
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" role="img" aria-label="${escapeXml(prompt)}">
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 900 640" role="img" aria-label="Memory garden cover">
       <defs>
         <linearGradient id="bg" x1="0" x2="1" y1="0" y2="1">
           <stop offset="0%" stop-color="${palette[0]}"/>

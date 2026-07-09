@@ -1,5 +1,102 @@
 # Inner Garden Current Status
 
+## 2026-07-09 Update: TASK-014 AI Companion Chat Dialog Fix
+
+Fixed the `/#/ai-companion-chat` composer layout so the text dialog uses the available width instead of collapsing into a 42px icon column.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Chat composer layout | Fixed | `.composer-shell` now uses three grid columns matching the three rendered controls: textarea, voice, send |
+| Protected route rendering | Fixed | Protected routes now return `LoginPage` immediately when `requireAuth()` redirects, preventing the chat page from flashing unauthorized API errors |
+
+**Validation:**
+```bash
+cd frontend
+npm.cmd run build
+# passed; Vite chunk-size warning only
+
+npm.cmd run test:contract
+# chat adapter contract ok
+# auth invalidation ok
+
+# Browser check
+# unauthenticated /#/ai-companion-chat renders LoginPage without mounting .chat-window
+```
+
+---
+
+## 2026-07-09 Update: TASK-013 Frontend Auto Cover Generation
+
+Connected the frontend Memory Card save flow to the existing AI image generation endpoint and removed user-facing custom image upload controls from the chat-to-card path.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Chat image upload UI | Complete | `frontend/src/AppFixed.jsx` no longer renders a file input or upload button in `ChatPage` |
+| Diary cover selection UI | Complete | Diary result page now shows a read-only auto-cover prompt instead of manual URL/upload controls |
+| Prompt generation | Complete | `buildWatercolorPrompt()` builds a beautiful watercolor prompt from diary content, raw conversation, messages, title, and emotion |
+| Automatic cover save | Complete | `handleSave()` calls `generateImage()` before `createMemory()` and stores the generated `/uploads/...` URL plus prompt |
+| Frontend API client | Complete | `frontend/src/api/client.js` exports `generateImage()` for `POST /api/v1/images/generate` |
+
+**Validation:**
+```bash
+cd frontend
+npm.cmd run build
+# passed; Vite chunk-size warning only
+
+npm.cmd run test:contract
+# chat adapter contract ok
+# auth invalidation ok
+```
+
+**Documentation:**
+- `docs/vibe-logs/log-25-frontend-auto-cover-generation.md`
+
+---
+
+## 2026-07-09 Update: TASK-012 AI Image Generation Implementation
+
+Implemented AI-powered image generation feature with DALL-E integration.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Image Generation API | ✅ Implemented | `POST /api/v1/images/generate` endpoint live |
+| DALL-E Integration | ✅ Complete | Supports DALL-E 2/3 with configurable size/quality/style |
+| Image Persistence | ✅ Complete | Generated images saved to `/uploads/` directory |
+| Prompt Enhancement | ✅ Complete | Emotion-based style guidance added to prompts |
+| Error Handling | ✅ Complete | Config, timeout, rate limit, provider errors handled |
+| Test Coverage | ✅ Complete | 16 tests covering all flows and edge cases |
+| Config Alignment | ✅ Complete | Uses `settings.ai_provider`, `settings.ai_timeout` like chatbot |
+
+**Implementation:**
+- Extended `AIProvider` with `generate_image()` method and `AIImageResponse` class
+- Created `ImageGenerationService` for orchestration (generate → download → save)
+- Added `POST /api/v1/images/generate` router endpoint
+- Defined request/response schemas with validation
+- **Updated**: ImageGenerationService now uses `settings` configuration for consistency
+
+**Configuration:**
+- All AI services (Chat, Analysis, Image Generation) now use unified `#env` configuration:
+  - `AI_PROVIDER` - Provider selection (openai/deepseek)
+  - `AI_DEFAULT_MODEL` - Default model to use
+  - `AI_TIMEOUT` - Request timeout in seconds
+  - `DEEPSEEK_BASE_URL` - Base URL for Deepseek provider
+
+**Validation:**
+```bash
+cd backend
+py -m pytest tests/test_image_generation.py -v
+# 16 passed
+```
+
+**Documentation:**
+- `docs/vibe-logs/log-24-ai-image-generation.md`
+
+**Cost Note:**
+- DALL-E 3: $0.04/1024x1024 image
+- DALL-E 2: $0.02/1024x1024 image
+
+---
+
 ## 2026-07-09 Update: TASK-009 Memory Card Deletion Fix
 
 Implemented cascade deletion of associated conversations when a Memory Card is deleted.

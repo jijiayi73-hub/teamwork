@@ -17,7 +17,7 @@ from .config import settings
 configure_logging()
 
 from . import models
-from .routers import admin, auth, chat, diaries, entries, logs, memories, stats, trash
+from .routers import admin, auth, chat, diaries, entries, images, logs, memories, stats, trash
 
 app = FastAPI(title="InnerGarden API")
 upload_dir = Path(__file__).resolve().parents[1] / "data" / "uploads"
@@ -49,6 +49,7 @@ app.include_router(logs.router, prefix="/api/v1")
 app.include_router(chat.router, prefix="/api/v1")
 app.include_router(memories.router, prefix="/api/v1")
 app.include_router(trash.router, prefix="/api/v1")
+app.include_router(images.router, prefix="/api/v1")
 
 
 @app.get("/health")

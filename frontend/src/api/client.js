@@ -85,6 +85,16 @@ export async function uploadImage(file) {
   });
 }
 
+export async function generateImage(payload) {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  return apiRequest('/images/generate', {
+    method: 'POST',
+    body: JSON.stringify(payload),
+  });
+}
+
 /**
  * 健康检查
  */
