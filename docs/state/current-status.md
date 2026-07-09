@@ -1,5 +1,306 @@
 # Inner Garden Current Status
 
+## 2026-07-09 Update: TASK-026 Memory Garden 标题显示修复
+
+Memory Garden 卡片现在显示保存的 title，用户可以在卡片列表中看到每张卡片的标题。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 卡片标题显示 | Implemented | `AppFixed.jsx` 添加 `memory.title` 显示 |
+| CSS 样式 | Implemented | 添加 `.memory-title` 和 `.memory-date` 样式 |
+| 前端构建 | Passing | `npm run build` → ✓ built in 2.47s |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.47s
+```
+
+**Changes:**
+- **Frontend**: `AppFixed.jsx` MemoryGardenPage 卡片添加标题显示
+- **Styles**: `styles.css` 添加 `.memory-title` 和 `.memory-date` 样式
+
+**Expected behavior:**
+- Memory Garden 卡片显示保存的 `title`
+- 标题显示在封面图片下方
+- 日期显示在标题下方
+- 标题使用衬线字体，优雅清晰
+
+---
+
+## 2026-07-09 Update: TASK-025 About界面使用指南
+
+About界面添加了完整的使用指南，采用标签导航和markdown风格排版。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 标签导航 | Implemented | 5个标签：快速开始、核心功能、常见问题、隐私声明、服务状态 |
+| 使用指南内容 | Implemented | 注册登录、功能介绍、FAQ、隐私声明 |
+| Markdown样式 | Implemented | 标题、列表、提示框、问答卡片样式 |
+| 前端构建 | Passing | `npm run build` → ✓ built in 3.26s |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 3.26s
+```
+
+**Changes:**
+- **Frontend**: `AppFixed.jsx` AboutPage 重构，`styles.css` 添加md-样式类
+
+**Expected behavior:**
+- 用户访问 `/#/about` 看到标签导航界面
+- 默认显示「快速开始」内容
+- 点击标签切换不同章节
+- 排版美观，支持标题、列表、提示、问答等格式
+
+---
+
+## 2026-07-09 Update: TASK-024 图片上传后直接用作背景和封面
+
+用户上传图片后，聊天界面背景直接替换为用户上传的图片，生成日记时也使用这张图片作为卡片封面，不再触发 AI 图片生成。不显示预览对话框，多次上传时自动覆盖上一张。图片不发送给 AI，不在聊天消息中显示。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 背景图片替换 | Implemented | ChatPage 条件渲染，有 uploadedImage 时显示图片背景 |
+| 移除预览对话框 | Implemented | 移除 imagePreviewUrl 预览区域 |
+| 多次上传覆盖 | Implemented | setUploadedImage 每次覆盖上一张 |
+| 图片不进入聊天 | Implemented | handleSend 移除图片逻辑，消息列表移除图片显示 |
+| 按钮提示 | Implemented | 照相机按钮添加 title 属性 |
+| 图片传递到 draft | Implemented | handleGenerateDiary 保存 uploadedImage 到 draft |
+| 跳过 AI 封面生成 | Implemented | DiaryResultPage 检查 uploaded_image_url，直接使用 |
+| 前端构建 | Passing | `npm run build` → ✓ built in 2.06s |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.06s
+```
+
+**Changes:**
+- **Frontend**: `AppFixed.jsx` ChatPage 背景条件渲染，移除预览区域，handleSend 移除图片逻辑，DiaryResultPage 跳过 AI 生成
+
+**Expected behavior:**
+- 用户在 ChatPage 上传图片后，背景立即替换为上传的图片
+- 不显示预览对话框，背景直接替换
+- 多次上传时，每次覆盖上一张，使用最后一张
+- 图片不发送给 AI，不在聊天消息中显示
+- 生成日记时，直接使用上传的图片作为卡片封面
+- 不再调用 AI 图片生成 API
+- 如果用户未上传图片，仍使用 AI 生成封面
+- 鼠标悬浮照相机按钮显示提示："上传图片作为背景和本日封面"
+
+---
+
+## 2026-07-09 Update: TASK-023 Chatbot 图片上传功能
+
+在 Chatbot 界面添加了图片上传按钮，允许用户在聊天时发送图片。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| 图片上传按钮 | Implemented | 📷 按钮添加到 composer，4 列布局 |
+| 图片上传函数 | Implemented | `handleImageUpload()` 验证格式和大小 |
+| 图片预览 | Implemented | 预览区域和移除按钮 |
+| 消息显示图片 | Implemented | 消息列表中显示 `chat-message-image` |
+| 前端构建 | Passing | `npm run build` → ✓ built in 2.09s |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.09s
+```
+
+**Changes:**
+- **Frontend**: `AppFixed.jsx` 添加图片上传状态和处理函数，composer 布局改为 4 列，消息列表支持显示图片
+- **Styles**: `styles.css` 添加图片预览、移除按钮和消息图片样式
+
+**Expected behavior:**
+- 用户点击 📷 按钮选择图片
+- 图片预览显示在输入框上方
+- 点击 × 按钮可移除已选图片
+- 支持纯图片发送（无需文字）
+- 发送后图片显示在消息列表中
+
+---
+
+## 2026-07-09 Update: TASK-021 情绪固定化与 Memory Garden 简化
+
+Fixed two UX issues: emotion/color/style are now AI-determined and read-only, and Memory Garden cards only show cover+date.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Emotion to color mapping | Implemented | `EMOTION_COLOR_MAP` maps 6 emotions to fixed colors |
+| DiaryResultPage read-only | Implemented | Removed emotion select, color swatches, style input |
+| Memory Garden simplified | Implemented | Cards now only show cover+date, clickable for detail |
+| Frontend build | Passing | `npm run build` → ✓ built in 2.82s |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.82s
+```
+
+**Changes:**
+- **Frontend**: Added `getEmotionColor()`, `getEmotionLabel()`, removed user-editable controls from DiaryResultPage, simplified MemoryGardenPage cards to cover+date only
+
+**Expected behavior:**
+- Emotion is displayed as a read-only badge with AI-analyzed color
+- Memory Garden cards are now simple clickable cover images with date overlay
+- All detail content is shown on the detail page after clicking
+
+---
+
+## 2026-07-09 Update: TASK-020 日记结构化生成与提示词隐藏
+
+Fixed two UX issues: AI diary now generates structured narrative instead of raw conversation dump, and AI cover prompt is hidden from users.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Structured diary generation | Implemented | `EMOTION_ANALYSIS_SYSTEM_PROMPT` now requires `diary_content` (150-400 chars) |
+| Cover prompt hidden | Implemented | Removed textarea display, prompt only used internally |
+| Frontend build | Passing | `npm run build` → ✓ built in 3.91s |
+
+**Validation:**
+```bash
+cd backend
+py -c "from app.services.analysis_service import EMOTION_ANALYSIS_SYSTEM_PROMPT; print('diary_content' in EMOTION_ANALYSIS_SYSTEM_PROMPT)"
+# Result: True
+
+cd frontend
+npm run build
+# Result: ✓ built in 3.91s
+```
+
+**Changes:**
+- **Backend**: Extended LLM prompt to request structured diary with date, events, feelings, and closing
+- **Frontend**: Removed "自动封面提示词" textarea from DiaryResultPage, kept internal generation
+
+**Expected behavior:**
+- AI generates diary like: "x月x日\n\n今天我[事件]。\n\n[感受]。\n\n[总结与期待]。"
+- Cover prompt is generated internally but not shown to user
+
+---
+
+## 2026-07-09 Update: TASK-019 AI Chat Thinking Indicator
+
+Added a three-dot pulse animation indicator that appears while AI is generating a reply.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| isAiTyping state | Implemented | `ChatPage` line 138: `const [isAiTyping, setIsAiTyping] = useState(false)` |
+| handleSend logic | Updated | Line 176 sets `isAiTyping = true`, line 199 sets `isAiTyping = false` in finally |
+| Thinking indicator JSX | Implemented | Renders `.ai-thinking-indicator` with three dots when `isAiTyping` is true |
+| CSS animations | Added | `@keyframes ai-thinking-pulse` and `@keyframes thinking-fade-in` in styles.css |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 3.25s
+```
+
+**Behavior:**
+- User sends message → `isSending` and `isAiTyping` both become `true`
+- Three-dot pulse indicator appears at bottom of chat message list
+- AI reply arrives → `isAiTyping` becomes `false`, indicator disappears
+- Animation: 8px dots with 1.4s pulse cycle, 0.2s staggered delay per dot
+
+---
+
+## 2026-07-09 Update: TASK-018 Username/Email Login Support
+
+Login page now supports both username and email for authentication.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Backend Schema | Updated | `UserLogin.username_or_email` replaces `email` |
+| Backend Router | Supports both | Query uses `or_(User.username == ..., User.email == ...)` |
+| Frontend UI | Updated | Label "用户名/邮箱", placeholder "用户名或邮箱", type `text` |
+
+**Validation:**
+```bash
+cd backend
+py -c "from app.schemas.auth import UserLogin; print('OK')"
+# Result: Fields: ['username_or_email', 'password']
+
+cd frontend
+npm run build
+# Result: ✓ built in 3.41s
+```
+
+**API Change:**
+- `POST /api/v1/auth/login` request body: `{ username_or_email, password }`
+- Previous field `email` is now `username_or_email`
+
+---
+
+## 2026-07-09 Update: TASK-016 Admin Access Control
+
+Implemented admin-only access control for the backend root path and API documentation.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Admin dependency module | Implemented | `app/auth/admin.py` provides `get_current_admin` |
+| Root path protection | Implemented | `GET /` requires admin authentication |
+| API docs protection | Implemented | `/docs`, `/redoc`, `/openapi.json` require admin |
+| Logs API protection | Implemented | All `/api/v1/logs/*` endpoints require admin |
+| Admin initialization script | Implemented | `scripts/init_admin.py` creates admin user |
+
+**Validation:**
+```bash
+cd backend
+py -c "from app.auth.admin import get_current_admin; print('Admin module OK')"
+# Result: Admin module OK
+
+py -c "from app.main import app; print('Main app OK')"
+# Result: Main app OK
+```
+
+**Admin Account:**
+- Username: `admin`
+- Password: `admin123456`
+- First-time setup: `py scripts/init_admin.py`
+
+**Protected Resources:**
+- `http://localhost:8000/` - Runtime log viewer (admin only)
+- `http://localhost:8000/docs` - API documentation (admin only)
+
+---
+
+## 2026-07-09 Update: TASK-015 Runtime Log Viewer
+
+Implemented a runtime log viewer interface replacing the API documentation at `http://localhost:8000`.
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Log Storage | Implemented | In-memory `LogStorage` with 2000 entry capacity and automatic rotation |
+| Log API | Implemented | New endpoints: `GET /api/v1/logs/entries`, `GET /api/v1/logs/stats`, `POST /api/v1/logs/clear` |
+| Log Capture | Implemented | `RequestLoggingMiddleware` and exception handlers automatically store logs |
+| Log Viewer UI | Implemented | `static/logs.html` with level filtering, auto-refresh, and statistics |
+| Root Path | Configured | `GET /` serves the log viewer page |
+
+**Validation:**
+```bash
+cd backend
+py -c "from app.main import app; print('Backend imports OK')"
+# Result: Backend imports OK
+
+py -c "from app.logger.storage import get_log_storage; print('Storage OK')"
+# Result: Storage OK
+```
+
+**Usage:**
+- Start backend: `py -m uvicorn app.main:app --reload`
+- Visit logs: `http://localhost:8000`
+- Features: Level filtering (info/warning/error), auto-refresh (5s), statistics display, expandable log details
+
+---
+
 ## 2026-07-09 Update: TASK-014 AI Companion Chat Dialog Fix
 
 Fixed the `/#/ai-companion-chat` composer layout so the text dialog uses the available width instead of collapsing into a 42px icon column.

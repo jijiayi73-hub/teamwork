@@ -1,0 +1,93 @@
+# Inner Garden Docker Compose Configuration
+# This file orchestrates backend, frontend, and reverse proxy containers
+
+services:
+  # Backend FastAPI Application
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    container_name: inner-garden-backend
+    restart: unless-stopped
+    environment:
+      - APP_ENV=${APP_ENV:-production}
+      - APP_HOST=${APP_HOST:-0.0.0.0}
+      - APP_PORT=${APP_PORT:-8000}
+      - DATABASE_URL=${DATABASE_URL:-sqlite:///./data/app.db}
+      - SECRET_KEY=${SECRET_KEY:-your-secret-key-change-in-production}
+      - CORS_ORIGINS=${CORS_ORIGINS:-http://localhost:80,http://localhost:8080}
+      - AI_PROVIDER=${AI_PROVIDER}
+      - AI_DEFAULT_MODEL=${AI_DEFAULT_MODEL}
+      - AI_TIMEOUT=${AI_TIMEOUT:-30}
+      - DEEPSEEK_API_KEY=${DEEPSEEK_API_KEY}
+      - DEEPSEEK_BASE_URL=${DEEPSEEK_BASE_URL:-https://api.deepseek.com}
+      - OPENAI_API_KEY=${OPENAI_API_KEY}
+    volumes:
+      - backend-data:/app/data
+      - backend-logs:/app/logs
+    networks:
+      - inner-garden-network
+    healthcheck:
+      test: ["CMD", "python", "-c", "import httpx; httpx.get('http://localhost:8000/health', timeout=5)"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Only expose to internal network
+    expose:
+      - "8000"
+
+  # Frontend React Application
+  frontend:
+    build:
+      context: ./frontend
+      dockerfile: Dockerfile
+      args:
+        - VITE_API_BASE_URL=${VITE_API_BASE_URL:-/api}
+    container_name: inner-garden-frontend
+    restart: unless-stopped
+    networks:
+      - inner-garden-network
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:8080/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+    # Only expose to internal network
+    expose:
+      - "8080"
+
+  # Nginx Reverse Proxy
+  nginx:
+    image: nginx:alpine
+    container_name: inner-garden-nginx
+    restart: unless-stopped
+    ports:
+      - "${HTTP_PORT:-80}:80"
+      - "${HTTPS_PORT:-443}:443"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/ssl:/etc/nginx/ssl:ro
+      - backend-data:/app/data:ro  # Read-only access to uploads
+    networks:
+      - inner-garden-network
+    depends_on:
+      - backend
+      - frontend
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 10s
+
+networks:
+  inner-garden-network:
+    driver: bridge
+
+volumes:
+  backend-data:
+    driver: local
+  backend-logs:
+    driver: local

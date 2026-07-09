@@ -65,20 +65,35 @@ class ImageGenerationService:
         enhanced_prompt = self._build_prompt(request.prompt, request.emotion)
 
         try:
-            # Get AI provider and generate image using settings configuration
+            # Determine the provider to use
+            provider_name = request.provider if hasattr(request, 'provider') else settings.ai_provider
+
+            # Select the appropriate model based on provider
+            if provider_name == "volces":
+                model_to_use = request.model if hasattr(request, 'model') and request.model.startswith("doubao-") else settings.volces_image_model
+                base_url = settings.volces_base_url
+            elif provider_name == "openai":
+                model_to_use = request.model if hasattr(request, 'model') else settings.ai_default_model
+                base_url = None
+            else:
+                # For other providers (like deepseek), image generation is not supported
+                model_to_use = settings.ai_default_model
+                base_url = settings.deepseek_base_url if settings.ai_provider == "deepseek" else None
+
             provider = get_provider(
-                provider=settings.ai_provider,
-                default_model=settings.ai_default_model,
+                provider=provider_name,
+                default_model=model_to_use,
                 timeout=settings.ai_timeout,
-                base_url=settings.deepseek_base_url if settings.ai_provider == "deepseek" else None,
+                base_url=base_url,
             )
 
             ai_response = provider.generate_image(
                 prompt=enhanced_prompt,
                 size=request.size,
-                model=request.model,
+                model=model_to_use,
                 quality=request.quality,
                 style=request.style,
+                watermark=request.watermark if hasattr(request, 'watermark') else False,
             )
 
             # Download and save the image

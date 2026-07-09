@@ -51,7 +51,7 @@ class AIProvider:
 
     def __init__(
         self,
-        provider: Literal["openai", "deepseek"] = "openai",
+        provider: Literal["openai", "deepseek", "volces"] = "openai",
         api_key: str | None = None,
         default_model: str = "gpt-4o-mini",
         timeout: int = 30,
@@ -60,11 +60,11 @@ class AIProvider:
         """Initialize AI provider.
 
         Args:
-            provider: AI provider name ("openai" or "deepseek")
+            provider: AI provider name ("openai", "deepseek", or "volces")
             api_key: API key for the provider (defaults to env var based on provider)
             default_model: Default model to use for generation
             timeout: Request timeout in seconds
-            base_url: Custom base URL (for Deepseek)
+            base_url: Custom base URL (for Deepseek or Volces)
         """
         self.provider = provider
         self.default_model = default_model
@@ -91,6 +91,17 @@ class AIProvider:
                 raise AIConfigError("DEEPSEEK_API_KEY not configured")
             # Deepseek uses OpenAI-compatible API with custom base URL
             self.base_url = base_url or "https://api.deepseek.com"
+            self.client = self.openai.OpenAI(
+                api_key=self.api_key,
+                base_url=self.base_url
+            )
+
+        elif provider == "volces":
+            self.api_key = api_key or os.getenv("VOLCES_API_KEY") or os.getenv("ARK_API_KEY")
+            if not self.api_key:
+                raise AIConfigError("VOLCES_API_KEY or ARK_API_KEY not configured")
+            # Volces Ark uses OpenAI-compatible API
+            self.base_url = base_url or "https://ark.cn-beijing.volces.com/api/v3"
             self.client = self.openai.OpenAI(
                 api_key=self.api_key,
                 base_url=self.base_url
@@ -172,36 +183,49 @@ class AIProvider:
     def generate_image(
         self,
         prompt: str,
-        size: Literal["256x256", "512x512", "1024x1024", "1792x1024", "1024x1792"] = "1024x1024",
+        size: Literal["256x256", "512x512", "1024x1024", "1792x1024", "1024x1792", "2K"] = "1024x1024",
         model: str = "dall-e-3",
         quality: Literal["standard", "hd"] = "standard",
         style: Literal["vivid", "natural"] = "vivid",
+        watermark: bool = False,
     ) -> AIImageResponse:
-        """Generate image using DALL-E.
+        """Generate image using DALL-E or Volces Ark.
 
         Args:
             prompt: Description of the desired image
-            size: Image size (dall-e-3 supports 1024x1024, 1792x1024, 1024x1792)
-            model: DALL-E model version (dall-e-3 or dall-e-2)
+            size: Image size (dall-e-3 supports 1024x1024, 1792x1024, 1024x1792; volces supports "2K")
+            model: DALL-E model version (dall-e-3 or dall-e-2) or volces model (doubao-seedream-*)
             quality: Image quality (standard or hd, dall-e-3 only)
             style: Image style (vivid or natural, dall-e-3 only)
+            watermark: Whether to add watermark (volces only)
 
         Returns:
             AIImageResponse with image URL, revised prompt, and metrics
 
         Raises:
-            AIConfigError: If provider is not OpenAI
+            AIConfigError: If provider is not supported
             AITimeoutError: If request times out
             AIProviderError: If API returns an error
             AIRateLimitError: If rate limit is exceeded
         """
-        if self.provider != "openai":
-            raise AIConfigError("Image generation is only supported for OpenAI provider")
+        if self.provider not in ("openai", "volces"):
+            raise AIConfigError(f"Image generation is not supported for {self.provider} provider")
 
         start_time = time.time()
 
         try:
-            if model == "dall-e-3":
+            if self.provider == "volces":
+                # Volces Ark (Doubao) image generation
+                extra_body = {"watermark": watermark} if watermark else {}
+                response = self.client.images.generate(
+                    model=model,
+                    prompt=prompt,
+                    size=size,
+                    n=1,
+                    timeout=self.timeout,
+                    extra_body=extra_body,
+                )
+            elif model == "dall-e-3":
                 response = self.client.images.generate(
                     model=model,
                     prompt=prompt,
@@ -774,7 +798,7 @@ _provider: AIProvider | None = None
 
 
 def get_provider(
-    provider: Literal["openai", "deepseek"] = "openai",
+    provider: Literal["openai", "deepseek", "volces"] = "openai",
     api_key: str | None = None,
     timeout: int = 30,
     default_model: str | None = None,
@@ -783,11 +807,11 @@ def get_provider(
     """Get or create AI provider instance.
 
     Args:
-        provider: AI provider name ("openai" or "deepseek")
+        provider: AI provider name ("openai", "deepseek", or "volces")
         api_key: API key (only used on first call)
         timeout: Request timeout in seconds
         default_model: Default model to use (only used on first call)
-        base_url: Custom base URL for Deepseek (only used on first call)
+        base_url: Custom base URL for Deepseek/Volces (only used on first call)
 
     Returns:
         AIProvider instance
@@ -799,6 +823,8 @@ def get_provider(
         if default_model is None:
             if provider == "deepseek":
                 default_model = "deepseek-chat"
+            elif provider == "volces":
+                default_model = "doubao-seedream-5-0-260128"
             else:
                 default_model = "gpt-4o-mini"
 

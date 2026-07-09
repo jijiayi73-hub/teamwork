@@ -26,5 +26,19 @@ class Settings:
     ai_timeout: int = int(getenv("AI_TIMEOUT", "30"))
     deepseek_base_url: str = getenv("DEEPSEEK_BASE_URL", "https://api.deepseek.com")
 
+    # Email/SMTP configuration for password reset
+    smtp_host: str = getenv("SMTP_HOST", "localhost")
+    smtp_port: int = int(getenv("SMTP_PORT", "587"))
+    smtp_user: str = getenv("SMTP_USER", "")
+    smtp_password: str = getenv("SMTP_PASSWORD", "")
+    smtp_from: str = getenv("SMTP_FROM", "Inner Garden <noreply@innergarden.app>")
+    smtp_use_tls: bool = getenv("SMTP_USE_TLS", "true").lower() == "true"
+    smtp_enabled: bool = getenv("SMTP_ENABLED", "true").lower() == "true"
+
+    # Volces Ark (Doubao) image generation configuration
+    volces_api_key: str = getenv("VOLCES_API_KEY", "")
+    volces_base_url: str = getenv("VOLCES_BASE_URL", "https://ark.cn-beijing.volces.com/api/v3")
+    volces_image_model: str = getenv("VOLCES_IMAGE_MODEL", "doubao-seedream-5-0-260128")
+
 
 settings = Settings()

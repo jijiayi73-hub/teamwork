@@ -98,16 +98,16 @@ export default function LoginPage() {
 
             <div>
               <label htmlFor="email" className="mb-2 block text-sm text-white/64">
-                邮箱
+                用户名/邮箱
               </label>
               <input
                 id="email"
-                type="email"
+                type="text"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 required
                 className="input-surface w-full"
-                placeholder="your@email.com"
+                placeholder="用户名或邮箱"
               />
             </div>
 
@@ -145,6 +145,17 @@ export default function LoginPage() {
               {isLogin ? '还没有账户？去注册' : '已有账户？去登录'}
             </button>
           </div>
+
+          {isLogin && (
+            <div className="mt-4 text-center">
+              <a
+                href="#/password-reset"
+                className="text-sm text-white/40 transition hover:text-white/60"
+              >
+                忘记密码？
+              </a>
+            </div>
+          )}
 
           <div className="mt-8 pt-6 border-t border-white/10 text-center">
             <a

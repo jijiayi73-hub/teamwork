@@ -1,5 +1,548 @@
 # Inner Garden Task Board
 
+## 2026-07-09 Task Update: TASK-026 Memory Garden 标题显示修复
+
+### TASK-026: Memory Garden 卡片标题显示修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+Memory Garden 卡片显示保存的 title，用户可以在卡片列表中看到每张卡片的标题。
+
+#### 实现内容
+1. **卡片标题显示** - 在 `MemoryGardenPage` 卡片中添加 `memory.title` 显示
+2. **CSS 样式** - 添加 `.memory-title` 和 `.memory-date` 样式
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| MemoryGardenPage | 添加 title 显示 | `frontend/src/AppFixed.jsx` |
+| CSS 样式 | 添加标题和日期样式 | `frontend/src/styles.css` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.47s
+```
+
+#### API / 数据库影响
+- API: 无。使用现有的 `GET /api/v1/memories` 端点，`MemoryCardRead` 已包含 `title` 字段
+- 数据库: 无。无需修改表结构
+
+#### 功能说明
+- Memory Garden 卡片现在显示保存的 `title`
+- 标题显示在封面图片下方
+- 日期显示在标题下方
+- 标题使用衬线字体，优雅清晰
+
+---
+
+## 2026-07-09 Task Update: TASK-024 图片上传后直接用作背景和封面
+
+### TASK-024: Chatbot 图片上传背景和封面替换
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+用户上传图片后，聊天界面背景直接替换为用户上传的图片，生成日记时也使用这张图片作为卡片封面，不再触发 AI 图片生成。不显示预览对话框，多次上传时自动覆盖上一张。图片不发送给 AI，不在聊天消息中显示。
+
+#### 实现内容
+1. **背景图片替换** - ChatPage 中添加条件渲染，有上传图片时显示图片背景，否则显示 ParticleWaveHero
+2. **移除预览对话框** - 移除图片预览区域，上传后直接替换背景
+3. **多次上传覆盖** - 每次上传自动覆盖上一张，使用最后一张
+4. **图片不进入聊天** - handleSend 移除图片相关逻辑，图片不发送给 AI，不在消息列表显示
+5. **图片传递到 draft** - handleGenerateDiary 中将 uploadedImage 保存到 draft.uploaded_image_url 和 draft.cover_image_url
+6. **跳过 AI 封面生成** - DiaryResultPage 的 useEffect 和 handleSave 中检查用户上传的图片，直接使用，不调用 generateImage API
+7. **添加按钮 tooltip** - 照相机按钮添加 title="上传图片作为背景和本日封面"
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| ChatPage 背景 | 添加条件渲染，图片上传后显示图片背景 | `frontend/src/AppFixed.jsx` |
+| 图片预览区域 | 移除，不再显示预览对话框 | `frontend/src/AppFixed.jsx` |
+| handleSend | 移除图片相关逻辑，只发送文本消息 | `frontend/src/AppFixed.jsx` |
+| 消息列表显示 | 移除 message.image_url 渲染 | `frontend/src/AppFixed.jsx` |
+| 发送按钮 | 移除 uploadedImage 检查，只检查文本 | `frontend/src/AppFixed.jsx` |
+| 按钮自定义 tooltip | 添加 data-tooltip 属性和 CSS 样式 | `frontend/src/AppFixed.jsx`, `frontend/src/styles.css` |
+| handleImageUpload | 更新提示文本，说明多次上传会覆盖 | `frontend/src/AppFixed.jsx` |
+| 页面标题 | 更新为"可以上传图片作为背景" | `frontend/src/AppFixed.jsx` |
+| handleGenerateDiary | 将 uploadedImage 保存到 draft | `frontend/src/AppFixed.jsx` |
+| DiaryResultPage useEffect | 检查 uploaded_image_url，直接使用上传图片 | `frontend/src/AppFixed.jsx` |
+| DiaryResultPage handleSave | 检查已有封面，跳过 AI 生成 | `frontend/src/AppFixed.jsx` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.06s
+```
+
+#### API / 数据库影响
+- API: 无。使用现有的 `POST /api/v1/uploads/images` 端点
+- 数据库: 无。无需修改表结构
+
+#### 功能说明
+- 用户在 ChatPage 上传图片后，背景立即替换为上传的图片
+- 不显示预览对话框，背景直接替换
+- 多次上传时，每次覆盖上一张，使用最后一张
+- 图片不发送给 AI，不在聊天消息中显示
+- 生成日记时，直接使用上传的图片作为卡片封面
+- 不再调用 AI 图片生成 API，节省成本和时间
+- 如果用户未上传图片，仍使用 AI 生成封面
+- 鼠标悬浮照相机按钮显示提示："上传图片作为背景和本日封面"
+
+---
+
+## 2026-07-09 Task Update: TASK-023 Chatbot 图片上传功能
+
+### TASK-023: Chatbot 界面图片上传按钮
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+在 Chatbot 界面添加图片上传按钮，利用已有的图片上传业务函数，允许用户在聊天时发送图片。
+
+#### 实现内容
+1. **Import 更新** - 添加 `uploadImage` 函数导入
+2. **状态扩展** - 添加 `uploadedImage`, `imagePreviewUrl`, `isUploading`, `fileInputRef` 状态
+3. **图片上传处理** - 实现 `handleImageUpload()` 和 `clearUploadedImage()` 函数
+4. **消息发送更新** - 修改 `handleSend()` 支持图片发送
+5. **UI 组件更新** - 在 composer 中添加图片上传按钮和预览区域
+6. **消息显示** - 在消息列表中显示上传的图片
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| Import | 添加 `uploadImage` 导入 | `frontend/src/AppFixed.jsx` |
+| ChatPage 状态 | 添加图片相关状态 | `frontend/src/AppFixed.jsx` |
+| 图片处理函数 | 新增 `handleImageUpload` 和 `clearUploadedImage` | `frontend/src/AppFixed.jsx` |
+| handleSend | 支持图片发送 | `frontend/src/AppFixed.jsx` |
+| 消息列表 | 显示图片 | `frontend/src/AppFixed.jsx` |
+| composer 布局 | 4 列布局（上传/输入/语音/发送） | `frontend/src/AppFixed.jsx` |
+| 图片预览 | 添加预览区域和移除按钮 | `frontend/src/AppFixed.jsx` |
+| CSS 样式 | 添加图片相关样式 | `frontend/src/styles.css` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.09s
+```
+
+#### API / 数据库影响
+- API: 无。使用现有的 `POST /api/v1/uploads/images` 端点
+- 数据库: 无。无需修改表结构
+
+#### 功能说明
+- 用户点击 📷 按钮选择图片
+- 图片预览显示在输入框上方
+- 点击 × 按钮可移除已选图片
+- 支持纯图片发送（无需文字）
+- 发送后图片显示在消息列表中
+
+---
+
+## 2026-07-09 Task Update: TASK-022 Volces Ark 文生图支持
+
+### TASK-022: 火山引擎豆包文生图集成
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+集成火山引擎 Ark API 的豆包文生图模型 (doubao-seedream-5-0-260128)，为项目提供替代 DALL-E 的国产图像生成方案。
+
+#### 实现内容
+1. **配置扩展** - 添加火山引擎配置到 `config.py`
+2. **AIProvider 扩展** - 添加 `volces` provider 支持
+3. **图片生成服务** - 更新 `ImageGenerationService` 支持新 provider
+4. **Schema 扩展** - 添加 `provider`, `watermark`, `2K` 尺寸等参数
+5. **环境变量文档** - 更新 `.env.example` 添加火山引擎配置说明
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| Settings | 添加 volces 配置字段 | `backend/app/config.py` |
+| AIProvider | 添加 volces provider 初始化和图片生成 | `backend/app/services/ai_provider.py` |
+| Image Gen Service | 更新 provider 初始化逻辑 | `backend/app/services/image_generation_service.py` |
+| Image Schemas | 添加 provider/watermark/2K 字段 | `backend/app/schemas/images.py` |
+| 环境变量文档 | 添加火山引擎配置说明 | `backend/.env.example` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.main import app; print('Backend imports OK')"
+# Result: Backend imports OK
+
+py -c "from app.config import settings; print('volces_base_url:', settings.volces_base_url)"
+# Result: volces_base_url: https://ark.cn-beijing.volces.com/api/v3
+```
+
+#### API 变更
+- `POST /api/v1/images/generate` 请求新增可选字段：
+  - `provider`: "openai" | "volces"
+  - `model`: 新增 "doubao-seedream-5-0-260128"
+  - `size`: 新增 "2K"
+  - `watermark`: boolean
+
+#### 环境变量
+```bash
+VOLCES_API_KEY=your-volces-api-key-here
+VOLCES_BASE_URL=https://ark.cn-beijing.volces.com/api/v3
+VOLCES_IMAGE_MODEL=doubao-seedream-5-0-260128
+```
+
+#### 使用方式
+1. 配置 `VOLCES_API_KEY` 到 `.env`
+2. 发送请求时指定 `provider="volces"` 和 `model="doubao-seedream-5-0-260128"`
+3. 可选设置 `watermark=True` 添加水印
+4. 可选设置 `size="2K"` 获取 2K 分辨率图片
+
+---
+
+## 2026-07-09 Task Update: TASK-021 情绪固定化与Memory Garden简化
+
+### TASK-021: 情绪固定化与 Memory Garden 简化
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+修复两个用户体验问题：
+1. 情绪/颜色/文风应由 AI 固定，而非用户选择
+2. Memory Garden 应只显示封面+日期，文字在点击后显示
+
+#### 实现内容
+1. **情绪到颜色固定映射** - 创建 `EMOTION_COLOR_MAP` 和 `getEmotionColor()` 函数
+   - 一个情绪对应一个固定颜色
+   - 不再允许用户自由选择
+2. **DiaryResultPage 优化** - 移除用户编辑控件
+   - 移除情绪选择下拉框，改为只读显示
+   - 移除颜色选择按钮，使用 AI 分析的情绪自动映射颜色
+   - 移除文风调整控件和 `regenerateTone()` 函数
+3. **MemoryGardenPage 简化** - 卡片只显示封面+日期
+   - 卡片改为可点击链接，点击进入详情页
+   - 移除卡片上的标题、摘要、关键词、按钮
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 情绪颜色映射 | 新增 EMOTION_COLOR_MAP、getEmotionColor()、getEmotionLabel() | `frontend/src/AppFixed.jsx` |
+| DiaryResultPage | 移除情绪/颜色/文风编辑控件 | `frontend/src/AppFixed.jsx` |
+| MemoryGardenPage | 简化卡片为封面+日期 | `frontend/src/AppFixed.jsx` |
+| 状态文档 | 记录实现状态 | `docs/state/current-status.md` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.82s
+```
+
+#### API / 数据库影响
+- API: 无。只修改前端 UI
+- 数据库: 无。无需修改表结构
+
+#### 风险与限制
+- 新 CSS 类名 `memory-card-simple` 和 `memory-date` 可能需要 CSS 支持
+- 删除按钮已移除，用户需要进入详情页删除
+
+---
+
+## 2026-07-09 Task Update: TASK-020 日记结构化生成与提示词隐藏
+
+### TASK-020: 日记结构化生成与封面提示词隐藏
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+修复两个用户体验问题：
+1. AI 日记生成应该是结构化的叙述文，而非简单对话记录拼接
+2. AI 封面生成提示词应该对用户隐藏，不显示在界面上
+
+#### 实现内容
+1. **后端 Prompt 更新** - 扩展 `EMOTION_ANALYSIS_SYSTEM_PROMPT`
+   - 增加 `diary_content` 字段要求（150-400字结构化日记）
+   - 增加 `title` 字段要求（日记标题）
+   - 指定日记格式：日期 + 事件 + 感受 + 总结
+2. **前端 UI 优化** - 移除封面提示词显示
+   - 删除"自动封面提示词" textarea
+   - 保留后台生成逻辑（用于 AI 图片生成）
+   - 只显示封面预览（如有）
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 后端 Prompt | 更新 EMOTION_ANALYSIS_SYSTEM_PROMPT | `backend/app/services/analysis_service.py` |
+| 前端 UI | 移除提示词 textarea | `frontend/src/AppFixed.jsx` |
+| 状态文档 | 记录实现状态 | `docs/state/current-status.md` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.services.analysis_service import EMOTION_ANALYSIS_SYSTEM_PROMPT; print('diary_content' in EMOTION_ANALYSIS_SYSTEM_PROMPT)"
+# Result: True
+
+cd frontend
+npm run build
+# Result: ✓ built in 3.91s
+```
+
+#### API / 数据库影响
+- API: 无。`POST /api/v1/entries` 响应格式保持不变
+- 数据库: 无。无需修改表结构
+
+#### 风险与限制
+- LLM 输出质量需要真实环境测试验证
+- 如 LLM 不返回 `diary_content`，有 fallback 逻辑
+
+---
+
+## 2026-07-09 Task Update: TASK-019 AI Chat Thinking Indicator
+
+### TASK-019: AI 回复间隔时三点脉冲动画
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+在 AI Companion Chat 界面中，当用户发送消息等待 AI 回复时，显示三点脉冲动画指示器，表明 AI 正在思考。
+
+#### 实现内容
+1. **状态管理** - 添加 `isAiTyping` 状态，与 `isSending` 生命周期同步
+2. **逻辑更新** - `handleSend` 中设置 `isAiTyping = true`，finally 块中设置为 `false`
+3. **JSX 渲染** - 在 `ai-notification-list` 底部渲染思考指示器
+4. **CSS 动画** - 实现 `ai-thinking-pulse` 和 `thinking-fade-in` 关键帧动画
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| ChatPage state | 添加 `isAiTyping` 状态 | `frontend/src/AppFixed.jsx` |
+| handleSend 逻辑 | 更新设置 `isAiTyping` | `frontend/src/AppFixed.jsx` |
+| 消息列表渲染 | 添加思考指示器 JSX | `frontend/src/AppFixed.jsx` |
+| CSS 动画 | 添加三点脉冲动画 | `frontend/src/styles.css` |
+| 状态文档 | 记录实现状态 | `docs/state/current-status.md` |
+| 任务板 | 记录任务信息 | `docs/state/task-board.md` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 3.25s
+```
+
+#### 动画规格
+- **指示器**: 3 个 8px 圆点，间距 6px
+- **颜色**: `rgba(255, 255, 255, 0.72)`（与 ai-notification-dot 一致）
+- **脉冲动画**: 1.4s 周期，opacity 0.24 ↔ 1，scale 0.85 ↔ 1
+- **延迟**: 第 2 个点延迟 0.2s，第 3 个点延迟 0.4s
+- **淡入**: 0.3s ease-out，从 translateY(8px) 淡入
+
+#### API / 数据库影响
+无影响 — 纯前端 UI 改进
+
+---
+
+## 2026-07-09 Task Update: TASK-018 Username/Email Login Support
+
+### TASK-018: 登录界面支持用户名/邮箱双登录
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+登录界面第一个表格支持用户名或邮箱登录都可以。
+
+#### 实现内容
+1. **后端 Schema** - 更新 `UserLogin` schema，将 `email` 字段改为 `username_or_email`
+2. **后端 Router** - 登录查询逻辑支持 `or_(User.username == ..., User.email == ...)`
+3. **前端界面** - 输入框标签改为"用户名/邮箱"，placeholder 改为"用户名或邮箱"，输入类型从 email 改为 text
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| Auth Schema | 更新 `UserLogin.email` → `username_or_email` | `backend/app/schemas/auth.py` |
+| Auth Router | 支持用户名或邮箱查询 | `backend/app/routers/auth.py` |
+| Login Page | 更新输入框标签和 placeholder | `frontend/src/components/LoginPage.jsx` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.schemas.auth import UserLogin; print('Fields:', [f for f in UserLogin.model_fields])"
+# Result: Fields: ['username_or_email', 'password']
+
+py -c "from app.routers.auth import router; print('OK')"
+# Result: Auth router OK
+
+cd frontend
+npm run build
+# Result: ✓ built in 3.41s
+```
+
+#### API 变更
+- `POST /api/v1/auth/login` 请求体字段从 `{ email, password }` 改为 `{ username_or_email, password }`
+- 响应保持不变
+
+---
+
+## 2026-07-09 Task Update: TASK-016 Admin Access Control
+
+### TASK-016: 管理员权限限制
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+1. 创建唯一管理员账户：用户名 `admin`，密码 `admin123456`
+2. 限制后端8000端口根路径只能管理员访问
+3. 限制API文档 `/docs` 只能管理员访问
+
+#### 实现内容
+1. **管理员依赖模块** - 创建 `app/auth/admin.py` 提供 `get_current_admin` 依赖
+2. **根路径限制** - 更新 `GET /` 使用 `get_current_admin` 依赖
+3. **API文档限制** - 更新 `/docs`、`/redoc`、`/openapi.json` 需要管理员权限
+4. **日志API限制** - 更新所有 `/api/v1/logs/*` 端点需要管理员权限
+5. **管理员初始化脚本** - 创建 `backend/scripts/init_admin.py` 自动创建admin用户
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 管理员依赖模块 | 新建 | `backend/app/auth/admin.py` |
+| 主应用 | 更新 | `backend/app/main.py` |
+| 日志路由 | 更新 | `backend/app/routers/logs.py` |
+| 初始化脚本 | 新建 | `backend/scripts/init_admin.py` |
+| 日志页面 | 更新 | `backend/static/logs.html` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.auth.admin import get_current_admin; print('Admin module OK')"
+# Result: Admin module OK
+
+py -c "from app.main import app; print('Main app OK')"
+# Result: Main app OK
+```
+
+#### 使用方式
+1. 首次运行需要创建管理员账户：
+   ```bash
+   cd backend
+   py scripts/init_admin.py
+   ```
+
+2. 使用管理员账户登录：
+   - 用户名：`admin`
+   - 密码：`admin123456`
+
+3. 访问受限资源：
+   - `http://localhost:8000` - 日志查看器（需管理员）
+   - `http://localhost:8000/docs` - API文档（需管理员）
+
+#### 安全说明
+- 默认管理员密码为 `admin123456`，首次登录后建议修改
+- 所有日志相关API端点都需要管理员权限
+- API文档访问完全受管理员权限保护
+
+---
+
+## 2026-07-09 Task Update: TASK-015 Runtime Log Viewer
+
+### TASK-015: 将8000.docx界面替换为运行日志显示
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+将后端8000端口的API文档界面（Swagger UI）替换为运行日志显示界面，日志需要分层显示（info、error等级别）。
+
+#### 实现内容
+1. **内存日志存储** - 创建 `LogStorage` 类，支持线程安全的日志存储和轮转（最大2000条）
+2. **日志API扩展** - 新增 `GET /api/v1/logs/entries`、`GET /api/v1/logs/stats`、`POST /api/v1/logs/clear` 端点
+3. **日志捕获集成** - 更新 `RequestLoggingMiddleware` 和异常处理器，自动将日志存入内存
+4. **日志显示界面** - 创建 `static/logs.html`，支持按级别筛选、自动刷新、统计显示
+5. **根路径重定向** - 配置 `GET /` 返回日志查看器页面
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 日志存储模块 | 新建 | `backend/app/logger/storage.py` |
+| 日志API路由 | 更新 | `backend/app/routers/logs.py` |
+| 请求日志中间件 | 更新 | `backend/app/logger/middleware.py` |
+| 异常处理器 | 更新 | `backend/app/logger/exception_handler.py` |
+| 主应用 | 更新 | `backend/app/main.py` |
+| 日志显示页面 | 新建 | `backend/static/logs.html` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.main import app; print('Backend imports OK')"
+# Result: Backend imports OK
+
+py -c "from app.logger.storage import get_log_storage, add_log_to_storage; s = get_log_storage(); add_log_to_storage('info', 'test'); print('Storage OK:', len(s.get_logs()))"
+# Result: Storage OK: 1
+```
+
+#### 使用方式
+1. 启动后端服务：`py -m uvicorn app.main:app --reload`
+2. 访问日志界面：`http://localhost:8000`
+3. 界面支持：
+   - 按级别筛选（全部/Info/Warning/Error）
+   - 自动刷新（5秒间隔）
+   - 手动刷新和清空日志
+   - 查看日志详情（点击展开）
+
+#### 已知限制
+- 日志存储在内存中，服务重启后会丢失
+- 最大存储2000条日志，超过后自动轮转
+- 需要登录才能查看日志
+
+---
+
 ## 2026-07-09 Task Update: TASK-014 AI Companion Chat Dialog Fix
 
 ### TASK-014: AI Companion Chat Dialog Layout Repair
@@ -652,6 +1195,183 @@ npm run build
 
 #### 文档
 - `docs/vibe-logs/log-22-feature-migration-analysis.md` - 完整分析和迁移计划
+
+---
+
+## 2026-07-09 Task Update: TASK-017 Monthly Report Auth Protection
+
+### TASK-017: Monthly Report 登录保护
+| Field | Value |
+| --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+未登录用户点击 Monthly Report 时自动跳转到登录界面，与其他受保护页面行为一致。
+
+#### 实现内容
+在 `frontend/src/AppFixed.jsx` 的受保护路由数组中添加 `'monthly-report'`。
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 路由守卫 | 更新受保护路由数组 | `frontend/src/AppFixed.jsx` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 3.63s
+```
+
+#### 使用方式
+- 未登录用户点击 "Monthly Report" 导航链接会自动跳转到 `#/login`
+- 登录后可正常访问月度报告页面
+
+---
+
+## 2026-07-09 Task Update: TASK-020 Email Password Reset
+
+### TASK-020: 邮箱找回密码功能
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Codex |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+实现完整的邮箱密码重置流程，允许用户通过注册邮箱重置忘记的密码。
+
+#### 实现内容
+1. **数据库变更** - 添加 `reset_token` 和 `reset_token_expires_at` 字段到 `users` 表
+2. **邮件服务** - 创建 SMTP 邮件发送服务，支持 HTML 邮件模板
+3. **密码重置服务** - 实现安全的 token 生成、验证和密码重置逻辑
+4. **API 端点** - 添加三个密码重置相关端点
+5. **前端页面** - 创建密码重置请求和确认页面
+6. **登录页链接** - 在登录页添加"忘记密码"链接
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| User 模型 | 添加 reset_token 字段 | `backend/app/models/diary.py` |
+| 数据库迁移 | 新建 migration | `backend/alembic/versions/0004_add_password_reset_tokens.py` |
+| 邮件服务 | 新建 EmailService | `backend/app/services/email_service.py` |
+| 重置服务 | 新建 PasswordResetService | `backend/app/services/password_reset_service.py` |
+| Auth Router | 添加密码重置端点 | `backend/app/routers/auth.py` |
+| Auth Schemas | 添加重置 Schema | `backend/app/schemas/auth.py` |
+| 配置文件 | 添加 SMTP 配置 | `backend/app/config.py` |
+| 前端页面 | 添加 PasswordResetPage | `frontend/src/AppFixed.jsx` |
+| API 客户端 | 添加重置 API 函数 | `frontend/src/api/client.js` |
+| 登录页 | 添加"忘记密码"链接 | `frontend/src/components/LoginPage.jsx` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.main import app; print('Backend imports OK')"
+# Result: Backend imports OK
+
+cd frontend
+npm run build
+# Result: ✓ built in 2.02s
+```
+
+#### API 端点
+- `POST /api/v1/auth/password-reset/request` - 请求发送重置邮件
+- `POST /api/v1/auth/password-reset/verify` - 验证 token 有效性
+- `POST /api/v1/auth/password-reset/confirm` - 确认重置并设置新密码
+
+#### 环境变量
+```bash
+SMTP_HOST=smtp.gmail.com
+SMTP_PORT=587
+SMTP_USER=your-email@gmail.com
+SMTP_PASSWORD=your-app-password
+SMTP_FROM=Inner Garden <noreply@innergarden.app>
+SMTP_USE_TLS=true
+SMTP_ENABLED=true
+```
+
+#### 安全特性
+- Token 使用 32 字节安全随机数
+- Token 有效期 30 分钟
+- Token 一次性使用（使用后立即清空）
+- 防邮箱枚举攻击（无论邮箱是否存在都返回相同响应）
+- 邮箱部分隐藏显示（j***@example.com）
+
+#### 使用方式
+1. 用户在登录页点击"忘记密码"
+2. 输入注册邮箱，点击"发送重置邮件"
+3. 检查邮箱（包括垃圾邮件文件夹），点击重置链接
+4. 链接跳转到 `/#/password-reset?token=xxx`
+5. 输入新密码并确认
+6. 重置成功后跳转到登录页
+
+#### 文档
+- `docs/vibe-logs/log-26-password-reset-feature.md` (待创建)
+
+---
+
+## 2026-07-09 Task Update: TASK-025 About Page User Guide
+
+### TASK-025: About界面使用指南
+| Field | Value |
+| --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+在About界面添加完整的使用指南，使用markdown风格排版，美观清晰。
+
+#### 实现内容
+1. **标签导航** - 快速开始、核心功能、常见问题、隐私声明、服务状态
+2. **Markdown风格排版** - 标题、列表、引用、问答样式
+3. **美观的视觉设计** - 与现有设计语言一致的磨砂玻璃风格
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| AboutPage | 重构为标签导航+内容渲染 | `frontend/src/AppFixed.jsx` |
+| CSS样式 | 添加markdown风格样式 | `frontend/src/styles.css` |
+| 任务板 | 添加TASK-025 | `docs/state/task-board.md` |
+
+#### 内容结构
+- **快速开始**：注册登录、首次使用建议
+- **核心功能**：AI伴侣聊天、记忆花园、月度报告
+- **常见问题**：账号安全、数据隐私、功能说明
+- **隐私声明**：产品边界、数据保护承诺
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 3.26s
+```
+
+#### 样式特性
+- 标签导航激活状态高亮
+- 多级标题层次分明
+- 有序/无序列表清晰
+- 提示框（💡 Note）醒目
+- 问答卡片式布局
+- 响应式设计适配移动端
+
+#### 2026-07-09 更新：背景修复
+添加 ParticleWaveHero 动画背景，替换原来的纯色背景。
+
+| 变更 | 文件 |
+|------|------|
+| 添加 ParticleWaveHero 组件 | `frontend/src/AppFixed.jsx` |
+| 添加 .about-page 样式 | `frontend/src/styles.css` |
+
+**验证**: `npm run build` → ✓ built in 3.58s
 
 ---
 

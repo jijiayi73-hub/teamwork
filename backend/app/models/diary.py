@@ -25,6 +25,9 @@ class User(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now)
     updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utc_now, onupdate=utc_now)
     last_login_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
+    # Password reset fields
+    reset_token: Mapped[Optional[str]] = mapped_column(String(255), nullable=True, index=True)
+    reset_token_expires_at: Mapped[Optional[datetime]] = mapped_column(DateTime(timezone=True), nullable=True)
 
     entries: Mapped[List["Entry"]] = relationship(back_populates="user")
     diaries: Mapped[List["Diary"]] = relationship(back_populates="user")

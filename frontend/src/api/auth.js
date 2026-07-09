@@ -89,22 +89,22 @@ export function getCurrentUser() {
 
 /**
  * 用户登录
- * @param {string} email - 用户邮箱
+ * @param {string} usernameOrEmail - 用户名或邮箱
  * @param {string} password - 用户密码
  * @returns {Promise<{access_token: string, user: object}>}
  */
-export async function login(email, password) {
+export async function login(usernameOrEmail, password) {
   const response = await fetch('/api/v1/auth/login', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ username_or_email: usernameOrEmail, password }),
   });
 
   const payload = await response.json();
 
   if (!response.ok) {
-    const message = formatAuthError(payload, '登录失败');
-    throw new Error(message);
+    // 隐藏技术细节，统一返回简体中文错误信息
+    throw new Error('用户名、邮箱或密码错误');
   }
 
   return saveSession(payload.data);
@@ -127,8 +127,8 @@ export async function register(username, email, password) {
   const payload = await response.json();
 
   if (!response.ok) {
-    const message = formatAuthError(payload, '注册失败');
-    throw new Error(message);
+    // 隐藏技术细节，统一返回简体中文错误信息
+    throw new Error('注册失败，用户名或邮箱可能已被使用');
   }
 
   return saveSession(payload.data);
