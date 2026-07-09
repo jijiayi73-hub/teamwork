@@ -1,5 +1,36 @@
 # Inner Garden Current Status
 
+## 2026-07-10 Update: TASK-047 AI 主动决策 RAG 检索
+
+由 Chat LLM 根据用户输入主动决策是否检索历史上下文，已部署到生产环境。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| AI 决策方法 | Implemented | `ai_provider.py` 添加 `should_retrieve_context()` 方法 |
+| ChatService 使用 AI 决策 | Implemented | 移除前端 `use_memory` 硬编码，后端 AI 决策 |
+| 前端移除 use_memory | Implemented | `AppFixed.jsx` 移除 `use_memory: false` |
+| 本地构建 | Passing | Backend imports OK, Frontend built in 3.38s |
+| VPS 部署 | Complete | 后端/前端容器重建并重启，健康检查通过 |
+
+**Changes:**
+- `backend/app/services/ai_provider.py` - 添加 `should_retrieve_context()` 方法
+- `backend/app/services/chat_service.py` - 使用 AI 决策替代 `use_memory` 参数
+- `frontend/src/AppFixed.jsx` - 移除 `use_memory: false` 硬编码
+
+**Expected behavior:**
+- AI 根据用户输入智能决策是否检索历史上下文
+- 三因子评分（关键词 + 情绪 + 时间）在 companion 模式下被实际使用
+- 锚点时间窗口检索在 past_self 模式下正常工作
+- 无需前端配置，完全由后端 AI 决策
+
+**Validation:**
+```bash
+curl https://jijiayi.online/api/v1/health
+# {"success":true,"data":{"status":"healthy","api_version":"v1"},"message":"ok"}
+```
+
+---
+
 ## 2026-07-10 Update: TASK-046 图片加载 CORS 问题修复
 
 修复 VPS 生产环境中 Chat-AI 图片上传后背景图不更新、Memory Garden 封面图显示时有时无的问题。

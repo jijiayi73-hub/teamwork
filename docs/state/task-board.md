@@ -7,8 +7,9 @@
 | --- | --- |
 | **Owner** | Codex |
 | **Branch** | `codex/sync-scripts-to-main` |
-| **Status** | Deploying |
+| **Status** | Complete |
 | **Started** | 2026-07-10 |
+| **Completed** | 2026-07-10 |
 
 #### 目标
 由 Chat LLM 根据用户输入主动决策是否检索历史日记上下文，全局应用（companion 和 past_self 模式），部署到生产环境。
