@@ -18,7 +18,7 @@ from .config import settings
 configure_logging()
 
 from . import models
-from .routers import admin, auth, chat, diaries, entries, images, logs, memories, stats, trash
+from .routers import admin, auth, audio, chat, diaries, entries, images, logs, memories, stats, trash
 from .auth import admin as auth_admin
 
 # Create FastAPI app with admin-only OpenAPI docs
@@ -64,6 +64,7 @@ app.include_router(chat.router, prefix="/api/v1")
 app.include_router(memories.router, prefix="/api/v1")
 app.include_router(trash.router, prefix="/api/v1")
 app.include_router(images.router, prefix="/api/v1")
+app.include_router(audio.router, prefix="/api/v1")
 
 
 @app.get("/health")

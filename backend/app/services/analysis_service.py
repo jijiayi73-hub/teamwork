@@ -1,8 +1,7 @@
 import json
-from typing import TYPE_CHECKING, Literal
+from typing import Literal
 
-if TYPE_CHECKING:
-    from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session
 
 
 NEGATIVE_WORDS = ("难过", "焦虑", "累", "疲惫", "生气", "害怕", "压力", "失眠", "崩溃")

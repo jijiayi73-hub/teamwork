@@ -1,6 +1,7 @@
 import { getStoredToken, invalidateSession, isAuthenticated } from './auth.js';
 
-const API_BASE = '/api/v1';
+// Use API_BASE from environment variable or fallback to relative path
+const API_BASE = import.meta.env.VITE_API_BASE_URL || '/api/v1';
 
 // 认证相关函数已迁移到 auth.js 模块
 export { getStoredToken, isAuthenticated } from './auth.js';
@@ -93,6 +94,64 @@ export async function generateImage(payload) {
     method: 'POST',
     body: JSON.stringify(payload),
   });
+}
+
+/**
+ * 上传音频文件
+ * @param {Blob|File} file - 音频文件
+ * @param {string} filename - 文件名
+ * @returns {Promise<object>}
+ */
+export async function uploadAudio(file, filename = 'recording.webm') {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  const dataUrl = await new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(reader.result);
+    reader.onerror = () => reject(new Error('音频读取失败'));
+    reader.readAsDataURL(file);
+  });
+  return apiRequest('/audio/upload', {
+    method: 'POST',
+    body: JSON.stringify({
+      filename,
+      content_type: file.type || 'audio/webm',
+      data_url: dataUrl,
+    }),
+  });
+}
+
+/**
+ * 转录音频为文字（预留功能）
+ * @param {string} audioUrl - 音频文件 URL
+ * @param {string} language - 语言代码（默认 zh-CN）
+ * @param {string} provider - STT 服务提供商（可选）
+ * @returns {Promise<object>}
+ */
+export async function transcribeAudio(audioUrl, language = 'zh-CN', provider = null) {
+  if (!isAuthenticated()) {
+    throw new Error('请先登录');
+  }
+  const body = {
+    audio_url: audioUrl,
+    language,
+  };
+  if (provider) {
+    body.provider = provider;
+  }
+  return apiRequest('/audio/transcribe', {
+    method: 'POST',
+    body: JSON.stringify(body),
+  });
+}
+
+/**
+ * 获取支持的音频格式
+ * @returns {Promise<object>}
+ */
+export async function getSupportedAudioFormats() {
+  return apiRequest('/audio/formats');
 }
 
 /**

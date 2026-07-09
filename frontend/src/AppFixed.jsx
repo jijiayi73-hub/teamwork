@@ -169,6 +169,7 @@ function ChatPage() {
   const [imagePreviewUrl, setImagePreviewUrl] = useState(null);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef(null);
+  const messagesEndRef = useRef(null);
 
   async function handleSend() {
     const rawContent = text.trim();
@@ -232,14 +233,21 @@ function ChatPage() {
     recognition.start();
   }
 
+  // 自动滚动到底部：当 messages 更新或 AI 正在输入时
+  useEffect(() => {
+    if (messagesEndRef.current) {
+      messagesEndRef.current.scrollIntoView({ behavior: 'smooth' });
+    }
+  }, [messages, isAiTyping]);
+
   async function handleImageUpload(file) {
     if (!file) return;
     if (!file.type.startsWith('image/')) {
       setNote('请选择图片文件');
       return;
     }
-    if (file.size > 4 * 1024 * 1024) {
-      setNote('图片大小不能超过 4MB');
+    if (file.size > 12 * 1024 * 1024) {
+      setNote('图片大小不能超过 12MB');
       return;
     }
     setIsUploading(true);
@@ -343,6 +351,8 @@ function ChatPage() {
                 <div className="ai-thinking-dot" />
               </div>
             )}
+            {/* 滚动锚点：用于自动滚动到底部 */}
+            <div ref={messagesEndRef} />
           </div>
           {note && <p className="chat-note">{note}</p>}
           <input

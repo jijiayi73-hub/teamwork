@@ -2,6 +2,66 @@
 
 ## 2026-07-09 最新更新
 
+### I-013 新增：VPS 认证只读数据库错误
+
+**问题描述**：VPS 生产环境无法注册和登录，后端报错 `attempt to write a readonly database`。
+
+**根本原因**：
+1. `docker-compose.prod.yml` 配置 `user: "1000:1001"`，但数据目录归 uid 999 所有
+2. Dockerfile 创建的 `appuser` uid 为 999，与 docker-compose 配置不一致
+
+**修复内容**：
+| 操作 | 命令 |
+|------|------|
+| 修改数据目录权限 | `sudo chown -R 1000:1001 /opt/inner-garden/backend/data/` |
+| 重启后端容器 | `docker compose -f docker-compose.prod.yml restart backend` |
+
+**验证结果**：
+- 注册功能：✅ 正常
+- 登录功能：✅ 正常
+- 详见：`docs/vibe-logs/log-37-vps-auth-readonly-database-fix.md`
+
+---
+
+## 2026-07-09 最新更新
+
+### I-012 新增：Auth.js readJsonResponse 未定义错误
+
+**问题描述**：生产环境报错 `readJsonResponse is not defined`，导致登录功能无法使用。
+
+**根本原因**：
+1. `frontend/src/api/auth.js` 中的 `login()` 和 `register()` 函数调用了 `readJsonResponse()` 函数，但该函数未定义
+2. `login()` 函数中缺少 `fallback` 变量定义
+
+**修复内容**：
+| 文件 | 修复内容 |
+|------|----------|
+| `frontend/src/api/auth.js` | 添加 `readJsonResponse()` 辅助函数定义 |
+| `frontend/src/api/auth.js` | 在 `login()` 函数中添加 `fallback` 变量 |
+
+**验证结果**：
+- `npm run build` 全部通过（✓ built in 2.00s）✅
+
+---
+
+## 2026-07-09 最新更新
+
+### I-011 新增：AI Chat 对话框布局错位
+
+**问题描述**：AI Companion Chat 界面的对话框 (`.composer-shell`) CSS 定义了 3 列，但 HTML 有 4 个元素，导致布局错位。
+
+**修复内容**：
+| 文件 | 修复内容 |
+|------|----------|
+| `frontend/src/styles.css` | 更新 `.composer-shell` 的 `grid-template-columns` 从 `minmax(0, 1fr) 42px 42px` 改为 `42px minmax(0, 1fr) 42px 42px` |
+
+**验证结果**：
+- `npm run build` 全部通过（✓ built in 1.80s）✅
+
+---
+
+## 2026-07-09 最新更新
+
 ### I-010 新增：Memory Card 删除时关联 Conversation 清理
 
 **问题描述**：删除 Memory Card 时，只在前端隐藏，数据库中的 MemoryCard 被软删除，但关联的 Past Self Conversation 没有被删除。

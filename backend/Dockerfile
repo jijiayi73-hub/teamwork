@@ -7,20 +7,14 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PIP_NO_CACHE_DIR=1 \
     PIP_DISABLE_PIP_VERSION_CHECK=1
 
-# Install build dependencies
-RUN apt-get update && apt-get install -y --no-install-recommends \
-    gcc \
-    libpq-dev \
-    && rm -rf /var/lib/apt/lists/*
-
 WORKDIR /build
 
 # Copy requirements first for better caching
 COPY requirements.txt .
 
-# Install Python dependencies
-RUN pip install --upgrade pip && \
-    pip install -r requirements.txt
+# Install Python dependencies (using China mirror for faster download)
+RUN pip install --upgrade pip -i https://mirrors.aliyun.com/pypi/simple/ && \
+    pip install -r requirements.txt -i https://mirrors.aliyun.com/pypi/simple/
 
 
 # Production stage

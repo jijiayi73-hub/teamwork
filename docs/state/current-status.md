@@ -1,5 +1,155 @@
 # Inner Garden Current Status
 
+## 2026-07-09 Update: TASK-030 语音输入接口实现
+
+在本地实现语音输入相关后端接口，为未来扩展服务端语音转文字功能预留接口。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Audio Schemas | Implemented | `backend/app/schemas/audio.py` 定义音频上传和转录 Schema |
+| Audio Router | Implemented | `backend/app/routers/audio.py` 实现音频上传和转录 API |
+| Audio API Client | Implemented | `frontend/src/api/client.js` 添加 `uploadAudio()`, `transcribeAudio()` 函数 |
+| 后端导入 | Passing | `py -c "from app.main import app"` → OK |
+| 前端构建 | Passing | `npm run build` → ✓ built in 3.55s |
+
+**Validation:**
+```bash
+cd backend
+py -c "from app.main import app; print('Backend imports OK')"
+# Result: Backend imports OK
+
+cd frontend
+npm run build
+# Result: ✓ built in 3.55s
+```
+
+**Changes:**
+- **Backend**: 新增 `backend/app/schemas/audio.py` - 音频相关 Schema 定义
+- **Backend**: 新增 `backend/app/routers/audio.py` - 音频上传和转录 API
+- **Backend**: 更新 `backend/app/main.py` - 注册音频路由
+- **Frontend**: 更新 `frontend/src/api/client.js` - 添加音频 API 客户端函数
+
+**Expected behavior:**
+- 前端可通过 `uploadAudio(file, filename)` 上传音频文件到服务器
+- 音频文件保存到 `/uploads/audio/` 目录，最大 25MB
+- 支持 webm, ogg, wav, mp3, m4a 格式
+- `transcribeAudio()` 接口已预留，当前返回模拟数据
+- 保留现有 Web Speech API 实现，无需后端即可使用语音输入
+
+**API Endpoints:**
+- `POST /api/v1/audio/upload` - 上传音频文件（需要认证）
+- `POST /api/v1/audio/transcribe` - 转录音频为文字（预留，需要认证）
+- `GET /api/v1/audio/formats` - 查询支持的音频格式（公开）
+
+**后续扩展:**
+- 集成真实 STT 服务（Azure Speech, Google Cloud STT, OpenAI Whisper）
+- 实现音频元数据解析（真实时长、质量检测）
+- 考虑对象存储代替本地存储
+
+---
+
+## 2026-07-09 Update: TASK-029 前端认证模块修复与部署
+
+修复了生产环境中登录功能报错 `readJsonResponse is not defined` 的问题，并已部署到 VPS。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| readJsonResponse 函数 | Defined | 添加了辅助函数处理 JSON 响应解析 |
+| login 函数 fallback 变量 | Defined | 在 login() 中添加了错误消息 fallback |
+| 前端构建 | Passing | `npm run build` → ✓ built in 2.00s |
+| VPS 部署 | Complete | 前端容器已重建并运行，健康检查通过 |
+
+**Validation:**
+```bash
+# 本地构建
+cd frontend
+npm run build
+# Result: ✓ built in 2.00s
+
+# VPS 部署验证
+curl http://jijiayi.online/api/v1/health
+# Result: {"success":true,"data":{"status":"healthy","api_version":"v1"},"message":"ok"}
+
+ssh vps "cd /opt/inner-garden && docker compose -f docker-compose.prod.yml ps"
+# Result: inner-garden-frontend healthy
+```
+
+**Changes:**
+- **Frontend**: `frontend/src/api/auth.js` 添加 `readJsonResponse()` 函数定义
+- **Frontend**: `frontend/src/api/auth.js` 在 `login()` 函数中添加 `fallback` 变量
+- **VPS**: 前端容器已重新构建并重启，新镜像包含修复代码
+
+**Expected behavior:**
+- 登录功能可以正确处理 API JSON 响应
+- 注册功能同样受益于共享的响应处理函数
+- 错误处理统一且用户友好
+- 生产环境登录/注册功能正常工作
+
+**Deployed at**: 2026-07-09 23:00 UTC
+
+---
+
+## 2026-07-09 Update: TASK-027 VPS 部署收口
+
+Inner Garden 已在 VPS `/opt/inner-garden` 通过 Docker Compose 启动，公网 `jijiayi.online` 的前端与 API 健康检查可访问。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| Docker registry | Fixed | `/etc/docker/daemon.json` 使用腾讯云镜像优先、DaoCloud 备用 |
+| Backend image build | Passing | 移除不必要的 `gcc/libpq-dev` 安装后，`docker compose -f docker-compose.prod.yml build backend` 成功 |
+| Backend startup | Passing | `inner-garden-backend` 状态为 `healthy` |
+| Frontend startup | Passing | `inner-garden-frontend` 状态为 `healthy` |
+| Database migration | Applied | `docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head` 成功 |
+| Public health | Passing | `http://jijiayi.online/api/v1/health` 返回 `status=healthy` |
+
+**Validation:**
+```bash
+ssh vps "cd /opt/inner-garden && docker compose -f docker-compose.prod.yml ps"
+# backend healthy, frontend healthy
+
+ssh vps "curl -fsS http://127.0.0.1:8000/health"
+# {"success":true,"data":{"status":"healthy"},"message":"ok","request_id":"local"}
+
+ssh vps "curl -sS --max-time 10 http://jijiayi.online/api/v1/health"
+# {"success":true,"data":{"status":"healthy","api_version":"v1"},"message":"ok","request_id":"local"}
+```
+
+**Changes:**
+- **Backend**: `backend/Dockerfile` no longer installs unused Debian build dependencies.
+- **Backend**: `analysis_service.py` imports `sqlalchemy.orm.Session` at runtime to fix container startup.
+- **Frontend/Compose**: healthchecks use `127.0.0.1:8080` instead of `localhost` to avoid IPv6 localhost false negatives.
+
+**Remaining risk:**
+- `/opt/inner-garden/.env` still contains `DEEPSEEK_API_KEY=YOUR_KEY`; AI calls may fail until a real key is configured.
+- SSL is not configured yet; current verified public URL is HTTP.
+
+---
+
+## 2026-07-09 Update: TASK-028 AI Chat 对话框布局修复
+
+修复 AI Companion Chat 界面对话框布局 Bug，解决 CSS 列数与 HTML 元素数量不匹配导致的布局错位问题。
+
+| Area | Current conclusion | Evidence |
+| --- | --- | --- |
+| CSS 列数修复 | Fixed | `.composer-shell` 从 3 列改为 4 列 |
+| 前端构建 | Passing | `npm run build` → ✓ built in 1.80s |
+
+**Validation:**
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 1.80s
+```
+
+**Changes:**
+- **Frontend**: `styles.css` 修复 `.composer-shell` 的 `grid-template-columns` 从 `minmax(0, 1fr) 42px 42px` 改为 `42px minmax(0, 1fr) 42px 42px`
+
+**Expected behavior:**
+- 对话框正确显示 4 个元素：📷上传按钮 | 输入框 | ♪语音按钮 | →发送按钮
+- 布局对齐，无错位
+
+---
+
 ## 2026-07-09 Update: TASK-026 Memory Garden 标题显示修复
 
 Memory Garden 卡片现在显示保存的 title，用户可以在卡片列表中看到每张卡片的标题。

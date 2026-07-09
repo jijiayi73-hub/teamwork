@@ -1,5 +1,254 @@
 # Inner Garden Task Board
 
+## 2026-07-09 Task Update: TASK-031 Chat Dialog Scroll Fix
+
+### TASK-031: 聊天对话框滚动修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+修复聊天对话框无法向上滚动查看历史消息的问题。
+
+#### 问题根源
+`.ai-notification-list` 使用了 `justify-content: flex-end` 让消息从底部开始对齐，导致滚动行为不符合用户预期。
+
+#### 实现内容
+1. **CSS 修复** - 移除 `.ai-notification-list` 的 `justify-content: flex-end`
+2. **添加滚动锚点** - 在 ChatPage 组件中添加 `messagesEndRef` 引用
+3. **自动滚动逻辑** - 添加 `useEffect` 钩子在消息更新时自动滚动到底部
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| CSS 样式 | 移除 justify-content: flex-end | `frontend/src/styles.css` |
+| ChatPage 组件 | 添加 messagesEndRef 和 useEffect | `frontend/src/AppFixed.jsx` |
+| JSX | 添加滚动锚点元素 | `frontend/src/AppFixed.jsx` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.04s
+```
+
+#### API / 数据库影响
+- **API**: 无影响
+- **数据库**: 无影响
+
+#### 预期行为
+- 新消息到达时自动滚动到底部
+- 用户可以自由向上滚动查看历史消息
+- AI 正在输入时自动保持在底部
+- 滚动条可见且易于使用
+
+#### 文档
+- `docs/vibe-logs/log-38-chat-scroll-fix.md`
+
+---
+
+## 2026-07-09 Task Update: TASK-030 Voice Input Interface Implementation
+
+### TASK-030: 语音输入接口实现
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+在本地更新语音输入功能，预留好对应的后端接口，为未来扩展服务端语音转文字功能做好准备。
+
+#### 实现内容
+1. **后端 Schema 定义** - 创建 `audio.py` schemas 定义音频上传和转录的请求/响应结构
+2. **音频上传 API** - 实现 `POST /api/v1/audio/upload` 端点，支持 base64 编码的音频文件上传
+3. **音频转录 API（预留）** - 实现 `POST /api/v1/audio/transcribe` 端点，当前返回模拟数据
+4. **格式查询 API** - 实现 `GET /api/v1/audio/formats` 端点，返回支持的音频格式
+5. **前端 API 客户端** - 添加 `uploadAudio()`, `transcribeAudio()`, `getSupportedAudioFormats()` 函数
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| Audio Schemas | 新建 | `backend/app/schemas/audio.py` |
+| Audio Router | 新建 | `backend/app/routers/audio.py` |
+| Main App | 注册音频路由 | `backend/app/main.py` |
+| API Client | 添加音频相关函数 | `frontend/src/api/client.js` |
+
+#### 验证
+```bash
+cd backend
+py -c "from app.main import app; print('Backend imports OK')"
+# Result: Backend imports OK
+
+cd frontend
+npm run build
+# Result: ✓ built in 3.55s
+```
+
+#### API / 数据库影响
+- **新增 API 端点**:
+  - `POST /api/v1/audio/upload` - 上传音频文件（需要认证）
+  - `POST /api/v1/audio/transcribe` - 转录音频为文字（预留，需要认证）
+  - `GET /api/v1/audio/formats` - 查询支持的音频格式（公开）
+- **数据库**: 无需修改表结构，Entry 表已包含 `audio_file_url`, `duration_seconds`, `input_type` 字段
+
+#### 支持的音频格式
+- audio/webm (.webm)
+- audio/ogg (.ogg)
+- audio/wav (.wav)
+- audio/mp3 (.mp3)
+- audio/mpeg (.mp3)
+- audio/mp4 (.m4a)
+- audio/x-m4a (.m4a)
+
+#### 文件大小限制
+- 最大音频文件大小: 25MB
+- 音频保存目录: `/uploads/audio/`
+
+#### 使用方式
+1. **上传音频文件**:
+   ```javascript
+   import { uploadAudio } from './api/client';
+
+   const audioFile = audioBlob; // from MediaRecorder
+   const response = await uploadAudio(audioFile, 'recording.webm');
+   console.log(response.data.audio_url); // "/uploads/audio/audio_20260709_123456_abc123.webm"
+   ```
+
+2. **转录音频（预留功能）**:
+   ```javascript
+   import { transcribeAudio } from './api/client';
+
+   const result = await transcribeAudio('/uploads/audio/recording.webm', 'zh-CN');
+   console.log(result.data.text); // 当前返回模拟数据
+   ```
+
+#### 功能说明
+- **前端语音输入**: 保留现有 Web Speech API 实现（`handleVoiceInput()`），无需后端即可使用
+- **音频上传**: 新增后端接口支持音频文件持久化存储
+- **STT 集成**: 预留转录接口，可后续集成 Azure Speech、Google Cloud STT、OpenAI Whisper 等服务
+- **扩展性**: 接口设计支持多种 STT 提供商切换
+
+#### 后续扩展建议
+1. **STT 服务集成**:
+   - 配置 STT 提供商凭证（Azure/Google/Whisper）
+   - 更新 `transcribe_audio()` 实现真实转录
+   - 添加置信度和语言检测
+
+2. **音频元数据处理**:
+   - 实现 `extract_duration_from_data_url()` 解析真实音频时长
+   - 添加音频质量检测
+   - 支持音频格式转换
+
+3. **存储优化**:
+   - 考虑使用对象存储服务（S3/OSS）代替本地存储
+   - 实现音频文件过期清理机制
+
+---
+
+## 2026-07-09 Task Update: TASK-029 Auth.js readJsonResponse 修复
+
+### TASK-029: 前端认证模块 readJsonResponse 未定义错误修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete & Deployed |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+| **Deployed** | 2026-07-09 23:00 UTC |
+
+#### 目标
+修复生产环境登录功能报错 `readJsonResponse is not defined` 的问题。
+
+#### 问题描述
+- **错误**：`readJsonResponse is not defined`
+- **影响**：用户无法登录或注册
+- **根本原因**：`frontend/src/api/auth.js` 中 `login()` 和 `register()` 函数调用了未定义的 `readJsonResponse()` 函数，且 `login()` 中缺少 `fallback` 变量
+
+#### 实现内容
+1. **添加 readJsonResponse 函数** - 在 `auth.js` 中定义辅助函数处理 JSON 响应解析
+2. **添加 fallback 变量** - 在 `login()` 函数中定义错误消息 fallback
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| 认证模块 | 添加 readJsonResponse 函数 | `frontend/src/api/auth.js` |
+| login 函数 | 添加 fallback 变量 | `frontend/src/api/auth.js` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 2.00s
+```
+
+#### API / 数据库影响
+- API: 无
+- 数据库: 无
+
+#### 功能说明
+- 登录功能现在可以正确处理 JSON 响应
+- 注册功能同样受益于共享的 `readJsonResponse` 函数
+- 错误处理统一且友好
+
+#### 文档
+- `docs/vibe-logs/log-36-auth-js-readjsonresponse-fix.md`
+
+---
+
+## 2026-07-09 Task Update: TASK-028 AI Chat 对话框布局修复
+
+### TASK-028: AI Chat 对话框布局修复
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | Inner Garden Team |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+修复 AI Companion Chat 界面对话框布局 Bug，解决 CSS 列数与 HTML 元素数量不匹配导致的布局错位问题。
+
+#### 问题描述
+- **CSS 定义**：`grid-template-columns: minmax(0, 1fr) 42px 42px` (3 列)
+- **HTML 元素**：📷上传按钮 | textarea输入框 | ♪语音按钮 | →发送按钮 (4 个元素)
+- **影响**：布局错位，对话框显示异常
+
+#### 实现内容
+1. **CSS 修复** - 更新 `.composer-shell` 的 `grid-template-columns` 从 3 列改为 4 列
+2. **列定义** - `42px minmax(0, 1fr) 42px 42px` 对应：上传按钮 | 输入框 | 语音按钮 | 发送按钮
+
+#### 变更内容
+| 组件 | 操作 | 文件 |
+|------|------|------|
+| CSS 样式 | 修复 composer-shell 列数 | `frontend/src/styles.css` |
+
+#### 验证
+```bash
+cd frontend
+npm run build
+# Result: ✓ built in 1.80s
+```
+
+#### API / 数据库影响
+- API: 无
+- 数据库: 无
+
+#### 功能说明
+- 对话框现在正确显示 4 个元素
+- 布局对齐，无错位
+- 保留所有功能（上传、输入、语音、发送）
+
+---
+
 ## 2026-07-09 Task Update: TASK-026 Memory Garden 标题显示修复
 
 ### TASK-026: Memory Garden 卡片标题显示修复
@@ -1375,6 +1624,98 @@ npm run build
 
 ---
 
+## 2026-07-09 Task Update: TASK-027 VPS 部署准备
+
+### TASK-027: Inner Garden VPS 部署到 jijiayi.online
+| Field | Value |
+| --- | --- | --- |
+| **Owner** | jiayiji |
+| **Branch** | `codex/sync-scripts-to-main` |
+| **Status** | ✅ Complete |
+| **Started** | 2026-07-09 |
+| **Completed** | 2026-07-09 |
+
+#### 目标
+将 Inner Garden 全套服务部署到 VPS (jijiayi.online)，包括后端 API、前端静态文件、Docker 容器化、nginx 反向代理、SSL 证书配置。
+
+#### VPS 信息
+- **域名**: jijiayi.online
+- **IP**: 49.232.17.105
+- **系统**: Ubuntu 22.04.5 LTS
+- **用户**: ubuntu
+- **SSH**: `vps` alias
+
+#### 当前状态
+✅ SSH 连接正常
+✅ Nginx 已安装 (1.18.0)
+✅ Python 3.10.12 已安装
+✅ Docker 和 Docker Compose 已安装
+✅ Docker 镜像源已配置
+✅ 后端容器 healthy
+✅ 前端容器 healthy
+✅ 数据库迁移已执行
+✅ `http://jijiayi.online/` 可访问
+✅ `http://jijiayi.online/api/v1/health` 可访问
+⚠️ SSL 证书未配置，当前验证的是 HTTP
+⚠️ `/opt/inner-garden/.env` 仍需配置真实 `DEEPSEEK_API_KEY`
+
+#### 部署文件
+| 文件 | 用途 |
+|------|------|
+| `scripts/vps-deploy.sh` | 自动化安装脚本 |
+| `docs/vps-deployment-guide.md` | 完整部署指南 |
+| `.env.production` | 生产环境配置模板 |
+
+#### 部署步骤
+1. 运行 `vps-deploy.sh` 安装 Docker 和基础环境
+2. 复制项目文件到 VPS
+3. 配置 `.env` 环境变量
+4. 构建 Docker 镜像
+5. 启动服务
+6. 配置 SSL 证书
+7. 运行数据库迁移
+8. 验证部署
+
+#### 已完成
+- [x] VPS 环境检测
+- [x] Docker 和 Docker Compose 安装 (29.6.1, v5.3.1)
+- [x] 项目目录创建 (/opt/inner-garden)
+- [x] 文件复制到 VPS
+- [x] .env 生产环境配置
+- [x] docker-compose.prod.yml 创建
+- [x] Nginx 配置文件生成
+
+#### 已完成
+- [x] 配置 Docker 镜像加速
+- [x] 构建 Docker 镜像
+- [x] 启动 Docker 容器
+- [x] 配置 Nginx 反向代理
+- [x] 运行数据库迁移
+- [x] 验证服务健康
+
+#### 后续待办
+- [ ] 配置真实 `DEEPSEEK_API_KEY`
+- [ ] 配置 SSL 证书（可选，但建议上线前完成）
+
+#### 本轮验证
+
+```bash
+ssh vps "cd /opt/inner-garden && docker compose -f docker-compose.prod.yml ps"
+# inner-garden-backend healthy
+# inner-garden-frontend healthy
+
+ssh vps "cd /opt/inner-garden && docker compose -f docker-compose.prod.yml exec -T backend alembic upgrade head"
+# SQLite migration context completed without error
+
+ssh vps "curl -fsS http://127.0.0.1:8000/health"
+# {"success":true,"data":{"status":"healthy"},"message":"ok","request_id":"local"}
+
+ssh vps "curl -sS --max-time 10 http://jijiayi.online/api/v1/health"
+# {"success":true,"data":{"status":"healthy","api_version":"v1"},"message":"ok","request_id":"local"}
+```
+
+---
+
 ## Backlog
 
 | ID | Title | Priority | Estimate |
@@ -1382,7 +1723,6 @@ npm run build
 | B-001 | Frontend Chat UI Components | High | 2-3 days |
 | B-002 | Expand Chat Backend Regression Tests | Medium | 1 day |
 | B-003 | Chat E2E Tests | Medium | 1 day |
-| B-004 | Deployment Setup | Low | 1 day |
 | B-005 | Image Generation Migration | High | 2-3 hours |
 | B-006 | Monthly Report Calendar Migration | High | 4-5 hours |
 | B-007 | Calendar Data Integration | Medium | 2-3 hours |
